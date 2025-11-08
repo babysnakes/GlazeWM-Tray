@@ -13,28 +13,33 @@ let agent =
             use client = new ClientWebSocket()
             use cts = new CancellationTokenSource()
 
-            // Wait for the client to connect
             do! Async.AwaitTask(client.ConnectAsync(ServerUri, cts.Token))
             printfn $"Connected to {ServerUri.ToString}"
 
-            // Define a separate async task to listen for incoming messages.
-            // This task will run in parallel with the agent's main loop.
             let listenTask =
                 async {
                     let mutable buffer = Array.zeroCreate<byte> 1024
 
                     try
                         while not cts.IsCancellationRequested do
-                            // Listen for a message from the server
-                            let! result = Async.AwaitTask(client.ReceiveAsync(ArraySegment<byte>(buffer), cts.Token))
-                            let jsonString = Encoding.UTF8.GetString(buffer, 0, result.Count)
-                            // Post the received message back to the agent for processing.
+                            let messageBuilder = StringBuilder()
+                            let mutable result = Unchecked.defaultof<WebSocketReceiveResult>
+                            let mutable receiving = true
+
+                            while receiving do
+                                let! currentResult =
+                                    Async.AwaitTask(client.ReceiveAsync(ArraySegment<byte>(buffer), cts.Token))
+
+                                result <- currentResult
+                                let chunk = Encoding.UTF8.GetString(buffer, 0, currentResult.Count)
+                                messageBuilder.Append(chunk) |> ignore
+                                receiving <- not currentResult.EndOfMessage
+
+                            let jsonString = messageBuilder.ToString()
                             inbox.Post(ReceiveMessage jsonString)
 
-                            // Check if the server closed the connection.
                             if result.MessageType = WebSocketMessageType.Close then
                                 printfn "Server closed the connection."
-                                // This will cause the listener to exit its loop
                                 cts.Cancel()
 
                     with ex ->
@@ -42,10 +47,8 @@ let agent =
                         cts.Cancel()
                 }
 
-            // Start the listening task in the background.
             Async.Start(listenTask)
 
-            // The main message processing loop for the agent.
             let rec loop () =
                 async {
                     let! msg = inbox.Receive()
@@ -63,11 +66,9 @@ let agent =
                         printfn $"Sent message: {content}"
                         return! loop ()
                     | ReceiveMessage jsonString ->
-                        // Print the JSON received from the server.
                         printfn $"Received JSON: {jsonString}"
                         return! loop ()
                     | Exit reply ->
-                        // Gracefully shut down the connection and signal completion to the caller.
                         printfn "Shutting down client..."
 
                         do!
