@@ -1,27 +1,34 @@
-﻿module GlazeWM.Tray.SubscriptionAgent
+﻿module GlazeWM.Tray.WebSocketClient
 
 open System
 open System.Net.WebSockets
 open System.Text
 open System.Threading
 
-open GlazeWM.Tray.Models
+/// Defines the types of messages our WebSocket client agent can process.
+type WebSocketMessage =
+    /// Instructs the agent to send a message to the WebSocket server.
+    | SendMessage of string
+    /// Acknowledges a message received from the server.
+    | ReceiveMessage of string
+    /// Instructs the agent to gracefully shut down the connection and provides a reply channel to signal completion.
+    | Exit of AsyncReplyChannel<unit>
 
-let agent =
+let newClient (url: Uri) =
     MailboxProcessor.Start(fun inbox ->
         async {
             use client = new ClientWebSocket()
             use cts = new CancellationTokenSource()
 
-            do! Async.AwaitTask(client.ConnectAsync(ServerUri, cts.Token))
-            printfn $"Connected to {ServerUri.ToString}"
+            do! Async.AwaitTask(client.ConnectAsync(url, cts.Token))
+            printfn $"Connected to {url}"
 
             let listenTask =
                 async {
                     let mutable buffer = Array.zeroCreate<byte> 1024
 
-                    try
-                        while not cts.IsCancellationRequested do
+                    while not cts.IsCancellationRequested do
+                        try
                             let messageBuilder = StringBuilder()
                             let mutable result = Unchecked.defaultof<WebSocketReceiveResult>
                             let mutable receiving = true
@@ -42,9 +49,9 @@ let agent =
                                 printfn "Server closed the connection."
                                 cts.Cancel()
 
-                    with ex ->
-                        printfn $"Error during message reception: {ex.Message}"
-                        cts.Cancel()
+                        with ex ->
+                            printfn $"Error during message reception: {ex.Message}"
+                            cts.Cancel()
                 }
 
             Async.Start(listenTask)
