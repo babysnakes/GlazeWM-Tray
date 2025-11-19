@@ -2,8 +2,19 @@
 open System
 open GlazeWM.Tray.WebSocketClient
 
+let demoParser =
+    MailboxProcessor.Start(fun (inbox: MailboxProcessor<string>) ->
+        let rec loop () =
+            async {
+                let! msg = inbox.Receive()
+                printfn $"PARSER RECEIVED: {msg}"
+                return! loop ()
+            }
+
+        loop ())
+
 let uri = Uri("ws://localhost:6123/")
-let client = newClient uri
+let client = newClient uri demoParser
 
 client.Post(
     SendMessage

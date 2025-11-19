@@ -1,20 +1,16 @@
-﻿module GlazeWM.Tray.WebSocketClient
+module GlazeWM.Tray.WebSocketClient
 
 open System
 open System.Net.WebSockets
 open System.Text
 open System.Threading
 
-/// Defines the types of messages our WebSocket client agent can process.
 type WebSocketMessage =
-    /// Instructs the agent to send a message to the WebSocket server.
     | SendMessage of string
-    /// Acknowledges a message received from the server.
-    | ReceiveMessage of string
-    /// Instructs the agent to gracefully shut down the connection and provides a reply channel to signal completion.
     | Exit of AsyncReplyChannel<unit>
+    | Fail of exn
 
-let newClient (url: Uri) =
+let newClient (url: Uri) (parser: MailboxProcessor<string>) =
     MailboxProcessor.Start(fun inbox ->
         async {
             use client = new ClientWebSocket()
@@ -43,15 +39,20 @@ let newClient (url: Uri) =
                                 receiving <- not currentResult.EndOfMessage
 
                             let jsonString = messageBuilder.ToString()
-                            inbox.Post(ReceiveMessage jsonString)
+                            parser.Post(jsonString)
 
                             if result.MessageType = WebSocketMessageType.Close then
                                 printfn "Server closed the connection."
                                 cts.Cancel()
 
-                        with ex ->
+                        with
+                        | :? OperationCanceledException as ex ->
+                            printfn "Listening task cancelled gracefully"
+                            raise ex
+                        | ex ->
                             printfn $"Error during message reception: {ex.Message}"
                             cts.Cancel()
+                            inbox.Post(Fail ex)
                 }
 
             Async.Start(listenTask)
@@ -72,9 +73,9 @@ let newClient (url: Uri) =
 
                         printfn $"Sent message: {content}"
                         return! loop ()
-                    | ReceiveMessage jsonString ->
-                        printfn $"Received JSON: {jsonString}"
-                        return! loop ()
+                    | Fail ex ->
+                        printfn $"THROW: {ex.Message}"
+                        raise ex
                     | Exit reply ->
                         printfn "Shutting down client..."
 
