@@ -1,7 +1,0 @@
-STORAGE: NONE
-NUGET
-  remote: https://api.nuget.org/v3/index.json
-    FSharp.Core (9.0.303) - restriction: >= netstandard2.0
-    FsToolkit.ErrorHandling (4.18)
-      FSharp.Core (>= 4.7.2) - restriction: && (>= netstandard2.0) (< netstandard2.1)
-      FSharp.Core (>= 7.0.300) - restriction: >= netstandard2.1

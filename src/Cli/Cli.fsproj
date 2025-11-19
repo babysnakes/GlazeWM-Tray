@@ -13,6 +13,5 @@
     <ItemGroup>
         <ProjectReference Include="..\Lib\Lib.fsproj"/>
     </ItemGroup>
-    <Import Project="..\..\.paket\Paket.Restore.targets"/>
 
 </Project>

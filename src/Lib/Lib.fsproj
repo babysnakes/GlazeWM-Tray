@@ -7,5 +7,4 @@
     <ItemGroup>
         <Compile Include="WebSocketClient.fs" />
     </ItemGroup>
-    <Import Project="..\..\.paket\Paket.Restore.targets"/>
 </Project>
