@@ -13,7 +13,9 @@ let demoParser =
 
         loop ())
 
-let uri = Uri("ws://localhost:6123/")
+let args = Environment.GetCommandLineArgs()
+let port = if args.Length > 1 then args.[1] else "6123"
+let uri = Uri($"ws://localhost:{port}/")
 let client = newClient uri demoParser
 
 client.Post(
