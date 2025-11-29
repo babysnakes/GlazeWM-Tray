@@ -1,0 +1,109 @@
+﻿namespace GlazeWM.Tray.MessageParser
+
+open System.Text.Json
+open System.Text.Json.Serialization
+open GlazeWM.Tray.Models
+open FsToolkit.ErrorHandling
+open GlazeWM.Tray.WebSocketClient
+
+type private JsonType =
+    | FocusChanged of JsonElement
+    | QueryWorkspaces of JsonElement
+
+type Parser(handler: MailboxProcessor<ParsingOutput>) =
+
+    let queryWorkspacesPhrase = "query workspaces"
+
+    let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
+
+    let extractRoot (json: string) =
+        JsonDocument.Parse(json) |> _.RootElement
+
+    let (|SubEvent|_|) (elem: JsonElement) =
+        let mutable prop = Unchecked.defaultof<JsonElement>
+
+        if
+            elem.TryGetProperty("messageType", &prop)
+            && prop.GetString() = "event_subscription"
+        then
+            let data = elem.GetProperty("data")
+            data.GetProperty("eventType").GetString() |> Some
+        else
+            None
+
+    let (|QueryResp|_|) (elem: JsonElement) =
+        let mutable prop = Unchecked.defaultof<JsonElement>
+
+        if elem.TryGetProperty("clientMessage", &prop) then
+            prop.GetString() |> Some
+        else
+            None
+
+    let handleWorkspacesResponse (wr: WorkspacesResponse) =
+        match wr |> WorkspaceResponse.extractCurrentWorkspace with
+        | Some(id, current) ->
+            (id, current)
+            ||> WorkspaceResponse.extractWorkspaceName
+            |> CurrentWorkspace
+            |> handler.Post
+
+            Some(current, id)
+        | None -> failwith "not implemented"
+
+    let handleFocusChangedEvent (e: FocusChangedEvent) (state: WorkspacesResponse option) =
+        option {
+            let! wr = state
+            let! id, w = wr |> WorkspaceResponse.tryGetWorkspace e.Data.FocusedContainer.ParentId
+            let wn = WorkspaceResponse.extractWorkspaceName id w
+            return wn |> CurrentWorkspace |> handler.Post
+        }
+
+
+    let messageParser =
+        MailboxProcessor<JsonType>.Start(fun inbox ->
+            let rec loop (state: WorkspacesResponse option) =
+                let options = JsonFSharpOptions.Default().ToJsonSerializerOptions()
+                options.PropertyNameCaseInsensitive <- true
+
+                async {
+                    let! msg = inbox.Receive()
+
+                    match msg with
+                    | FocusChanged m ->
+                        let parsed = JsonSerializer.Deserialize<FocusChangedEvent>(m, options)
+
+                        handleFocusChangedEvent parsed state
+                        |> Option.defaultWith (fun () -> SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
+                    | QueryWorkspaces m ->
+                        let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
+
+                        match handleWorkspacesResponse parsed with
+                        | Some _ -> return! loop (Some parsed)
+                        | _ -> failwith "not implemented"
+
+                    do! loop state
+                }
+
+            loop None)
+
+    member _.Dispatcher() =
+        MailboxProcessor<string>.Start(fun inbox ->
+            let rec loop () =
+                async {
+                    let! msg = inbox.Receive()
+                    let root = extractRoot msg
+
+                    try
+                        match root with
+                        | SubEvent "focus_changed" -> messageParser.Post(FocusChanged root)
+                        | QueryResp "query workspaces" -> messageParser.Post(QueryWorkspaces root)
+                        | _ -> printfn $"Unknown message: {msg}"
+                    with ex ->
+                        printfn $"Error parsing message: {ex}"
+
+                    do! loop ()
+                }
+
+            loop ())
+
+    member this.SetWsClient(client: MailboxProcessor<WebSocketMessage>) = wsClient <- Some client
