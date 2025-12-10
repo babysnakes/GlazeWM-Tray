@@ -5,12 +5,12 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
     <ItemGroup>
-        <Compile Include="Models.fs" />
+        <Compile Include="Models.fs"/>
         <Compile Include="WebSocketClient.fs"/>
-        <Compile Include="MessageParser.fs" />
+        <Compile Include="MessageParser.fs"/>
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="FSharp.SystemTextJson" Version="1.4.36" />
-      <PackageReference Include="FsToolkit.ErrorHandling" Version="4.18.0"/>
+        <PackageReference Include="FSharp.SystemTextJson"/>
+        <PackageReference Include="FsToolkit.ErrorHandling"/>
     </ItemGroup>
 </Project>

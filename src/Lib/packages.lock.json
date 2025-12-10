@@ -1,13 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "dependencies": {
     "net8.0": {
-      "FSharp.Core": {
-        "type": "Direct",
-        "requested": "[8.0.403, )",
-        "resolved": "8.0.403",
-        "contentHash": "ldNIn4IksrJL/X3rF4R/y9pa3RmwkcGYQ3xFMdbJj8dJ9Q49J735m6sMy3MbCK9gj3YoCsxlyFeExCiNDy3gHQ=="
-      },
       "FSharp.SystemTextJson": {
         "type": "Direct",
         "requested": "[1.4.36, )",
@@ -26,6 +20,11 @@
         "dependencies": {
           "FSharp.Core": "7.0.300"
         }
+      },
+      "FSharp.Core": {
+        "type": "Transitive",
+        "resolved": "7.0.300",
+        "contentHash": "8vvItREJ1l5lcp3vBCSJ1mFevVAhR48I34DuF/EoUa7o1KlFpQpagyuZkVYMAsHPIjdp47ZxM9sI4eqeXaeWkA=="
       },
       "System.Runtime.CompilerServices.Unsafe": {
         "type": "Transitive",
