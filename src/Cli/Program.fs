@@ -46,6 +46,7 @@ client.Error.Add(fun exn ->
 
 printfn "Type debug/info to set log level, exit to quit, any other input to send to GlazeWM"
 
+[<TailCall>]
 let rec ReadAndSendLoop () =
     let input = Console.ReadLine()
 

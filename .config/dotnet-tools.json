@@ -15,6 +15,13 @@
         "dotnet-fsharplint"
       ],
       "rollForward": false
+    },
+    "paket": {
+      "version": "9.0.2",
+      "commands": [
+        "paket"
+      ],
+      "rollForward": false
     }
   }
 }

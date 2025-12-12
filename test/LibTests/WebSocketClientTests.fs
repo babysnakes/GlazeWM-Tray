@@ -60,7 +60,7 @@ let ``It can send very long messages`` () =
     let agent = newClient (Uri(url)) parser
     agent.Error.Add(raise)
     agent.Post(SendMessage msg)
-    if not (tcs.Task.Wait(1000)) then failwith "timeout"
+    if not (tcs.Task.Wait(1000)) then failwith "reached timeout"
     let result = tcs.Task.Result
     result |> should equal msg
 
@@ -86,6 +86,6 @@ let ``It handles large messages from server`` () =
     if connectionSignal.WaitOne(TimeSpan.FromSeconds(2.0)) then
         let socket = serverSideSocket |> Option.get
         socket.Send(msg) |> ignore
-        if not (tcs.Task.Wait(1000)) then failwith "timeout"
+        if not (tcs.Task.Wait(1000)) then failwith "Reached timeout"
         let result = tcs.Task.Result
         result |> should equal msg

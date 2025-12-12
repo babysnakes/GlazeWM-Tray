@@ -1,2 +1,7 @@
 ﻿[*.fs]
 fsharp_max_if_then_short_width = 70
+
+[*.fsproj]
+indent_style = space
+indent_size = 2
+ij_xml_space_inside_empty_tag = true

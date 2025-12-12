@@ -1,45 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
-    <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
-
-        <IsPackable>false</IsPackable>
-        <GenerateProgramFile>false</GenerateProgramFile>
-        <IsTestProject>true</IsTestProject>
-    </PropertyGroup>
-
-    <ItemGroup>
-        <Content Include="Fixtures/*.json">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </Content>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Compile Include="CommonHelpers.fs"/>
-        <Compile Include="ModelsTests.fs"/>
-        <Compile Include="MessageParserTests.fs"/>
-        <Compile Include="WebSocketClientTests.fs"/>
-        <Compile Include="Program.fs"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="coverlet.collector">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="Fleck"/>
-        <PackageReference Include="FsUnit"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
-        <PackageReference Include="NUnit"/>
-        <PackageReference Include="NUnit.Analyzers">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="NUnit3TestAdapter"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\..\src\Lib\Lib.fsproj"/>
-    </ItemGroup>
-
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="Fixtures/*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CommonHelpers.fs" />
+    <Compile Include="ModelsTests.fs" />
+    <Compile Include="MessageParserTests.fs" />
+    <Compile Include="WebSocketClientTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Lib\Lib.fsproj" />
+  </ItemGroup>
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
