@@ -21,6 +21,12 @@
           "FSharp.Core": "7.0.300"
         }
       },
+      "Serilog": {
+        "type": "Direct",
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "+cDryFR0GRhsGOnZSKwaDzRRl4MupvJ42FhCE4zhQRVanX0Jpg6WuCBk59OVhVDPmab1bB+nRykAnykYELA9qQ=="
+      },
       "FSharp.Core": {
         "type": "Transitive",
         "resolved": "7.0.300",

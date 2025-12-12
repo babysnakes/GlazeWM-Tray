@@ -5,6 +5,7 @@ open System.Text.Json.Serialization
 open GlazeWM.Tray.Models
 open FsToolkit.ErrorHandling
 open GlazeWM.Tray.WebSocketClient
+open Serilog
 
 type private JsonType =
     | FocusChanged of JsonElement
@@ -70,11 +71,13 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
                     match msg with
                     | FocusChanged m ->
+                        Log.Debug("messageParser received focus changed: {Message}", m)
                         let parsed = JsonSerializer.Deserialize<FocusChangedEvent>(m, options)
 
                         handleFocusChangedEvent parsed state
                         |> Option.defaultWith (fun () -> SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
                     | QueryWorkspaces m ->
+                        Log.Debug("messageParser received query workspaces: {Message}", m)
                         let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
 
                         match handleWorkspacesResponse parsed with
@@ -91,15 +94,16 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
             let rec loop () =
                 async {
                     let! msg = inbox.Receive()
-                    let root = extractRoot msg
 
                     try
+                        let root = extractRoot msg
+
                         match root with
                         | SubEvent "focus_changed" -> messageParser.Post(FocusChanged root)
                         | QueryResp "query workspaces" -> messageParser.Post(QueryWorkspaces root)
-                        | _ -> printfn $"Unknown message: {msg}"
+                        | _ -> Log.Warning("Unknown message: {Message}", root)
                     with ex ->
-                        printfn $"Error parsing message: {ex}"
+                        Log.Error("Error parsing message: {Ex}", ex)
 
                     do! loop ()
                 }

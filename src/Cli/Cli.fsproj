@@ -7,12 +7,17 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="Program.fs"/>
-        <None Include="WebSocketMockServer.fsx"/>
+        <Compile Include="Program.fs" />
+        <None Include="WebSocketMockServer.fsx" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Lib\Lib.fsproj"/>
+        <ProjectReference Include="..\Lib\Lib.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Serilog" />
+      <PackageReference Include="Serilog.Sinks.Console" />
     </ItemGroup>
 
 </Project>

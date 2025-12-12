@@ -4,6 +4,8 @@ open System
 open System.Net.WebSockets
 open System.Text
 open System.Threading
+open Serilog
+
 
 type WebSocketMessage =
     | SendMessage of string
@@ -17,7 +19,7 @@ let newClient (url: Uri) (parser: MailboxProcessor<string>) =
             use cts = new CancellationTokenSource()
 
             do! Async.AwaitTask(client.ConnectAsync(url, cts.Token))
-            printfn $"Connected to {url}"
+            Log.Information("Connected to {Url}", url)
 
             let listenTask =
                 async {
@@ -42,15 +44,15 @@ let newClient (url: Uri) (parser: MailboxProcessor<string>) =
                             parser.Post(jsonString)
 
                             if result.MessageType = WebSocketMessageType.Close then
-                                printfn "Server closed the connection."
+                                Log.Information "Server closed the connection."
                                 cts.Cancel()
 
                         with
                         | :? OperationCanceledException as ex ->
-                            printfn "Listening task cancelled gracefully"
+                            Log.Information "Listening task cancelled gracefully"
                             raise ex
                         | ex ->
-                            printfn $"Error during message reception: {ex.Message}"
+                            Log.Error("Error during message reception: {Ex}", ex)
                             cts.Cancel()
                             inbox.Post(Fail ex)
                 }
@@ -71,13 +73,13 @@ let newClient (url: Uri) (parser: MailboxProcessor<string>) =
                                 client.SendAsync(ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cts.Token)
                             )
 
-                        printfn $"Sent message: {content}"
+                        Log.Debug("Sent message: {Content}", content)
                         return! loop ()
                     | Fail ex ->
-                        printfn $"THROW: {ex.Message}"
+                        Log.Error("WebSocket client received Fail with {Ex}", ex)
                         raise ex
                     | Exit reply ->
-                        printfn "Shutting down client..."
+                        Log.Information "Shutting down client..."
 
                         do!
                             Async.AwaitTask(

@@ -194,7 +194,8 @@
         "type": "Project",
         "dependencies": {
           "FSharp.SystemTextJson": "[1.4.36, )",
-          "FsToolkit.ErrorHandling": "[4.18.0, )"
+          "FsToolkit.ErrorHandling": "[4.18.0, )",
+          "Serilog": "[4.3.0, )"
         }
       },
       "FSharp.SystemTextJson": {
@@ -215,6 +216,12 @@
         "dependencies": {
           "FSharp.Core": "7.0.300"
         }
+      },
+      "Serilog": {
+        "type": "CentralTransitive",
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "+cDryFR0GRhsGOnZSKwaDzRRl4MupvJ42FhCE4zhQRVanX0Jpg6WuCBk59OVhVDPmab1bB+nRykAnykYELA9qQ=="
       }
     }
   }
