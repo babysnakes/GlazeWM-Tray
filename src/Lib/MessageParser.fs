@@ -15,6 +15,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     let queryWorkspacesPhrase = "query workspaces"
 
+    let errorEvent = Event<string>()
     let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
 
     let extractRoot (json: string) =
@@ -49,7 +50,9 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
             |> handler.Post
 
             Some(current, id)
-        | None -> failwith "not implemented"
+        | None ->
+            errorEvent.Trigger "No current workspace found"
+            failwith "not implemented"
 
     let handleFocusChangedEvent (e: FocusChangedEvent) (state: WorkspacesResponse option) =
         option {
@@ -61,53 +64,66 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
 
     let messageParser =
-        MailboxProcessor<JsonType>.Start(fun inbox ->
-            let rec loop (state: WorkspacesResponse option) =
-                let options = JsonFSharpOptions.Default().ToJsonSerializerOptions()
-                options.PropertyNameCaseInsensitive <- true
+        let agent =
+            MailboxProcessor<JsonType>.Start(fun inbox ->
+                let rec loop (state: WorkspacesResponse option) =
+                    let options = JsonFSharpOptions.Default().ToJsonSerializerOptions()
+                    options.PropertyNameCaseInsensitive <- true
 
-                async {
-                    let! msg = inbox.Receive()
+                    async {
+                        let! msg = inbox.Receive()
 
-                    match msg with
-                    | FocusChanged m ->
-                        Log.Debug("messageParser received focus changed: {Message}", m)
-                        let parsed = JsonSerializer.Deserialize<FocusChangedEvent>(m, options)
+                        match msg with
+                        | FocusChanged m ->
+                            Log.Debug("messageParser received focus changed: {Message}", m)
+                            let parsed = JsonSerializer.Deserialize<FocusChangedEvent>(m, options)
 
-                        handleFocusChangedEvent parsed state
-                        |> Option.defaultWith (fun () -> SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
-                    | QueryWorkspaces m ->
-                        Log.Debug("messageParser received query workspaces: {Message}", m)
-                        let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
+                            handleFocusChangedEvent parsed state
+                            |> Option.defaultWith (fun () -> SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
+                        | QueryWorkspaces m ->
+                            Log.Debug("messageParser received query workspaces: {Message}", m)
+                            let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
 
-                        match handleWorkspacesResponse parsed with
-                        | Some _ -> return! loop (Some parsed)
-                        | _ -> failwith "not implemented"
+                            match handleWorkspacesResponse parsed with
+                            | Some _ -> return! loop (Some parsed)
+                            | response ->
+                                errorEvent.Trigger $"handleWorkspacesResponse failed {response}"
+                                failwith "not implemented"
 
-                    do! loop state
-                }
+                        do! loop state
+                    }
 
-            loop None)
+                loop None)
+
+        agent.Error.Add(fun s -> errorEvent.Trigger s.Message)
+        agent
+
+    [<CLIEvent>]
+    member this.Event = errorEvent.Publish
 
     member _.Dispatcher() =
-        MailboxProcessor<string>.Start(fun inbox ->
-            let rec loop () =
-                async {
-                    let! msg = inbox.Receive()
+        let agent =
+            MailboxProcessor<string>.Start(fun inbox ->
+                let rec loop () =
+                    async {
+                        let! msg = inbox.Receive()
 
-                    try
-                        let root = extractRoot msg
+                        try
+                            let root = extractRoot msg
 
-                        match root with
-                        | SubEvent "focus_changed" -> messageParser.Post(FocusChanged root)
-                        | QueryResp "query workspaces" -> messageParser.Post(QueryWorkspaces root)
-                        | _ -> Log.Warning("Unknown message: {Message}", root)
-                    with ex ->
-                        Log.Error("Error parsing message: {Ex}", ex)
+                            match root with
+                            | SubEvent "focus_changed" -> messageParser.Post(FocusChanged root)
+                            | QueryResp "query workspaces" -> messageParser.Post(QueryWorkspaces root)
+                            | _ -> Log.Warning("Unknown message: {Message}", root)
+                        with ex ->
+                            Log.Error("Error parsing message: {Ex}", ex)
 
-                    do! loop ()
-                }
+                        do! loop ()
+                    }
 
-            loop ())
+                loop ())
+
+        agent.Error.Add(fun s -> errorEvent.Trigger s.Message)
+        agent
 
     member this.SetWsClient(client: MailboxProcessor<WebSocketMessage>) = wsClient <- Some client
