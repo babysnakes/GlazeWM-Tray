@@ -31,6 +31,7 @@ let port = if args.Length > 1 then args[1] else "6123"
 let uri = Uri($"ws://localhost:{port}/")
 let parser = Parser(demoHandler)
 let client = newClient uri (parser.Dispatcher())
+let mutable failureOccured = false
 
 // populate cache
 client.Post(SendMessage "query workspaces")
@@ -39,8 +40,12 @@ client.Post(
     SendMessage
         "sub -e workspace_updated workspace_activated workspace_deactivated binding_modes_changed pause_changed focus_changed"
 )
+
 // IMPORTANT: listen to error events
-client.Error.Add(fun exn -> Log.Error("Error occurred in websocket client: {Message}", exn.Message))
+client.Error.Add(fun exn ->
+    Log.Error("Error occurred in websocket client: {Message}", exn.Message)
+    failureOccured <- true)
+
 parser.Event.Add(fun msg -> Log.Error("Error occurred in message parser: {Message}", msg))
 
 printfn "Type debug/info to set log level, exit to quit, any other input to send to GlazeWM"
@@ -50,7 +55,7 @@ let rec ReadAndSendLoop () =
     let input = Console.ReadLine()
 
     match input.ToLower() with
-    | "exit" -> client.PostAndReply(Exit)
+    | "exit" -> if not failureOccured then client.PostAndReply(Exit)
     | "debug" ->
         levelSwitch.MinimumLevel <- LogEventLevel.Debug
         ReadAndSendLoop()
