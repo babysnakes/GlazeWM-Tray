@@ -24,7 +24,7 @@ let ``correctly parses workspace response`` () =
     if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
     let result = tcs.Task.Result
     result.Name |> should equal "2"
-    result.DisplayName |> should equal "Workspace 2"
+    result.DisplayName |> should equal "2"
 
 module ``focus-changed-event workflow tests`` =
 

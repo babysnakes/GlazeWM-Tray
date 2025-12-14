@@ -43,9 +43,9 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     let handleWorkspacesResponse (wr: WorkspacesResponse) =
         match wr |> WorkspaceResponse.extractCurrentWorkspace with
-        | Some(id, current) ->
-            (id, current)
-            ||> WorkspaceResponse.extractWorkspaceName
+        | Some current ->
+            current
+            |> WorkspaceResponse.extractWorkspaceName
             |> CurrentWorkspace
             |> handler.Post
 
@@ -57,8 +57,8 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
     let handleFocusChangedEvent (e: FocusChangedEvent) (state: WorkspacesResponse option) =
         option {
             let! wr = state
-            let! id, w = wr |> WorkspaceResponse.tryGetWorkspace e.Data.FocusedContainer.ParentId
-            let wn = WorkspaceResponse.extractWorkspaceName id w
+            let! w = wr |> WorkspaceResponse.tryGetWorkspace e.Data.FocusedContainer.ParentId
+            let wn = WorkspaceResponse.extractWorkspaceName w
             return wn |> CurrentWorkspace |> handler.Post
         }
 

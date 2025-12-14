@@ -40,28 +40,22 @@ module WorkspaceResponse =
 
     /// Extracts the current workspace's name (if found). It might return the index as the name if the name is too long.
     let extractCurrentWorkspace (wr: WorkspacesResponse) =
-        wr.Data.Workspaces |> List.indexed |> List.tryFind (fun (_, w) -> w.HasFocus)
+        wr.Data.Workspaces |> List.tryFind _.HasFocus
 
-    /// Logic to extract the workspace name. The `Name` should be very short or calculated from `idx`. The `DisplayName`
-    /// should be calculated by index or name if not provided.
-    let extractWorkspaceName (idx: int) (workspace: Workspace) =
-        if workspace.Name.Length <= 2 then
-            let dn =
-                workspace.DisplayName
-                |> Option.bind (fun n -> if n.Trim().Length > 0 then Some n else None)
+    /// Logic to extract the workspace name. If the name is longer then a single character it uses the first character.
+    /// The display name is either defined or duplicates the full name.
+    let extractWorkspaceName (workspace: Workspace) =
+        let mutable name = workspace.Name.Trim()
+        if name.Length <> 1 then name <- name[0] |> string
 
-            let name =
-                if workspace.Name.Trim() = "" then
-                    $"{idx + 1}"
-                else
-                    workspace.Name
+        let dn =
+            workspace.DisplayName
+            |> Option.bind (fun d -> if d.Length > 1 then Some d else None)
+            |> Option.defaultValue workspace.Name
 
-            { Name = name
-              DisplayName = dn |> Option.defaultValue $"Workspace {idx + 1}" }
-        else
-            { Name = $"{idx + 1}"
-              DisplayName = workspace.DisplayName |> Option.defaultValue workspace.Name }
+        { Name = name.ToLower()
+          DisplayName = dn }
 
     /// Try to find a workspace by its ID.
     let tryGetWorkspace (id: Guid) (wr: WorkspacesResponse) =
-        wr.Data.Workspaces |> List.indexed |> List.tryFind (fun (_, w) -> w.Id = id)
+        wr.Data.Workspaces |> List.tryFind (fun w -> w.Id = id)
