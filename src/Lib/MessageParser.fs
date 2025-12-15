@@ -99,7 +99,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
         agent
 
     [<CLIEvent>]
-    member this.Event = errorEvent.Publish
+    member this.Error = errorEvent.Publish
 
     member _.Dispatcher() =
         let agent =

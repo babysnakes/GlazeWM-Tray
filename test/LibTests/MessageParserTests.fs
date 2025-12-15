@@ -29,7 +29,7 @@ let ``correctly parses workspace response`` () =
 module ``focus-changed-event workflow tests`` =
 
     [<Test>]
-    let ``happy workflow triggers active workspace response`` (cancellationToken: System.Threading.CancellationToken) =
+    let ``happy workflow triggers active workspace response`` () =
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let eventJson = loadFixture "basic-focus-changed-event.json"
         let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspaceName>()
@@ -45,7 +45,7 @@ module ``focus-changed-event workflow tests`` =
 
         let parser = Parser(handler)
         let dispatcher = parser.Dispatcher()
-        dispatcher.Post queryWorkspacesResponse // Make sure the parser has state
+        dispatcher.Post queryWorkspacesResponse // Make sure the parser has a state
         dispatcher.Post eventJson
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
         let result = tcs.Task.Result
@@ -67,7 +67,7 @@ module ``focus-changed-event workflow tests`` =
         let parser = Parser(handler)
         parser.SetWsClient mockWsClient
         let dispatcher = parser.Dispatcher()
-        dispatcher.Post queryWorkspacesResponse // Make sure the parser has state
+        dispatcher.Post queryWorkspacesResponse // Make sure the parser has a state
         dispatcher.Post eventJson
 
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")

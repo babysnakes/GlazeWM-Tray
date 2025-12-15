@@ -10,88 +10,112 @@ open Serilog
 type WebSocketMessage =
     | SendMessage of string
     | Exit of AsyncReplyChannel<unit>
-    | Fail of exn
 
-let newClient (url: Uri) (parser: MailboxProcessor<string>) =
-    MailboxProcessor.Start(fun inbox ->
+type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
+
+    let client = new ClientWebSocket()
+    let cts = new CancellationTokenSource()
+    let errorEvent = Event<string>()
+
+    let listen () =
         async {
-            use client = new ClientWebSocket()
-            use cts = new CancellationTokenSource()
+            let mutable buffer = Array.zeroCreate<byte> 1024
 
-            do! Async.AwaitTask(client.ConnectAsync(url, cts.Token))
-            Log.Information("Connected to {Url}", url)
+            while not cts.IsCancellationRequested do
+                try
+                    let messageBuilder = StringBuilder()
+                    let mutable result = Unchecked.defaultof<WebSocketReceiveResult>
+                    let mutable receiving = true
 
-            let listenTask =
-                async {
-                    let mutable buffer = Array.zeroCreate<byte> 1024
+                    while receiving do
+                        let! currentResult = Async.AwaitTask(client.ReceiveAsync(ArraySegment<byte>(buffer), cts.Token))
 
-                    while not cts.IsCancellationRequested do
-                        try
-                            let messageBuilder = StringBuilder()
-                            let mutable result = Unchecked.defaultof<WebSocketReceiveResult>
-                            let mutable receiving = true
+                        result <- currentResult
+                        let chunk = Encoding.UTF8.GetString(buffer, 0, currentResult.Count)
+                        messageBuilder.Append(chunk) |> ignore
+                        receiving <- not currentResult.EndOfMessage
 
-                            while receiving do
-                                let! currentResult =
-                                    Async.AwaitTask(client.ReceiveAsync(ArraySegment<byte>(buffer), cts.Token))
+                    let jsonString = messageBuilder.ToString()
+                    parser.Post(jsonString)
 
-                                result <- currentResult
-                                let chunk = Encoding.UTF8.GetString(buffer, 0, currentResult.Count)
-                                messageBuilder.Append(chunk) |> ignore
-                                receiving <- not currentResult.EndOfMessage
+                    if result.MessageType = WebSocketMessageType.Close then
+                        Log.Information "Server closed the connection."
+                        cts.Cancel()
 
-                            let jsonString = messageBuilder.ToString()
-                            parser.Post(jsonString)
+                with
+                | :? OperationCanceledException as ex ->
+                    Log.Information "Listening task cancelled"
+                    raise ex
+                | ex ->
+                    Log.Error("Error during message reception: {Ex}", ex)
+                    errorEvent.Trigger(ex.Message)
+                    cts.Cancel()
+        }
 
-                            if result.MessageType = WebSocketMessageType.Close then
-                                Log.Information "Server closed the connection."
-                                cts.Cancel()
+    // Create the agent once (per instance) and cache it.
+    let agent =
+        let a =
+            MailboxProcessor.Start(
+                (fun inbox ->
+                    async {
+                        do! Async.AwaitTask(client.ConnectAsync(uri, cts.Token))
+                        Log.Information("Connected to {Url}", uri)
+                        Async.Start(listen (), cancellationToken = cts.Token)
 
-                        with
-                        | :? OperationCanceledException as ex ->
-                            Log.Information "Listening task cancelled gracefully"
-                            raise ex
-                        | ex ->
-                            Log.Error("Error during message reception: {Ex}", ex)
-                            cts.Cancel()
-                            inbox.Post(Fail ex)
-                }
+                        let rec loop () =
+                            async {
+                                let! msg = inbox.Receive()
 
-            Async.Start(listenTask)
+                                match msg with
+                                | SendMessage content ->
+                                    let bytes = Encoding.UTF8.GetBytes(content)
 
-            let rec loop () =
-                async {
-                    let! msg = inbox.Receive()
+                                    do!
+                                        Async.AwaitTask(
+                                            client.SendAsync(
+                                                ArraySegment<byte>(bytes),
+                                                WebSocketMessageType.Text,
+                                                true,
+                                                cts.Token
+                                            )
+                                        )
 
-                    match msg with
-                    | SendMessage content ->
-                        // Send a message over the WebSocket.
-                        let bytes = Encoding.UTF8.GetBytes(content)
+                                    Log.Debug("Sent message: {Content}", content)
+                                    return! loop ()
+                                | Exit reply ->
+                                    Log.Information "Shutting down client..."
 
-                        let! _ =
-                            Async.AwaitTask(
-                                client.SendAsync(ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cts.Token)
-                            )
+                                    do!
+                                        Async.AwaitTask(
+                                            client.CloseAsync(
+                                                WebSocketCloseStatus.NormalClosure,
+                                                "Client initiated close",
+                                                cts.Token
+                                            )
+                                        )
 
-                        Log.Debug("Sent message: {Content}", content)
-                        return! loop ()
-                    | Fail ex ->
-                        Log.Error("WebSocket client received Fail with {Ex}", ex)
-                        raise ex
-                    | Exit reply ->
-                        Log.Information "Shutting down client..."
+                                    reply.Reply()
+                            }
 
-                        do!
-                            Async.AwaitTask(
-                                client.CloseAsync(
-                                    WebSocketCloseStatus.NormalClosure,
-                                    "Client initiated close",
-                                    cts.Token
-                                )
-                            )
+                        do! loop ()
+                    }),
+                cancellationToken = cts.Token
+            )
 
-                        reply.Reply() // Signal to the caller that the shutdown is complete
-                }
+        a.Error.Add(fun ex -> errorEvent.Trigger(ex.Message))
+        a
 
-            do! loop ()
-        })
+    member _.Agent = agent
+
+    [<CLIEvent>]
+    member this.Error = errorEvent.Publish
+
+    interface IDisposable with
+        member _.Dispose() =
+            try
+                cts.Cancel()
+            with _ ->
+                ()
+
+            client.Dispose()
+            cts.Dispose()

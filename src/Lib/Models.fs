@@ -42,7 +42,7 @@ module WorkspaceResponse =
     let extractCurrentWorkspace (wr: WorkspacesResponse) =
         wr.Data.Workspaces |> List.tryFind _.HasFocus
 
-    /// Logic to extract the workspace name. If the name is longer then a single character it uses the first character.
+    /// Logic to extract the workspace name. If the name is longer than a single character, it uses the first character.
     /// The display name is either defined or duplicates the full name.
     let extractWorkspaceName (workspace: Workspace) =
         let mutable name = workspace.Name.Trim()

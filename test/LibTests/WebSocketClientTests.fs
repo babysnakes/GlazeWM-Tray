@@ -32,8 +32,8 @@ let ``It fails fast if an error occurs`` () =
                 serverSideSocket <- Some socket
                 connectionSignal.Set() |> ignore)
 
-    let agent = newClient (Uri(url)) parser
-    agent.Error.Add(fun _ -> tcs.SetResult(true))
+    let client = new WebSocketClient(Uri(url), parser)
+    client.Error.Add(fun _ -> tcs.SetResult(true))
 
     if connectionSignal.WaitOne(TimeSpan.FromSeconds(2.0)) then
         let socket = serverSideSocket |> Option.get
@@ -57,8 +57,9 @@ let ``It can send very long messages`` () =
         socket.OnMessage <- fun message -> tcs.SetResult(message)
         socket.OnClose <- fun () -> printfn "Disconnected")
 
-    let agent = newClient (Uri(url)) parser
-    agent.Error.Add(raise)
+    let client = new WebSocketClient(Uri(url), parser)
+    let agent = client.Agent
+    client.Error.Add(failwith)
     agent.Post(SendMessage msg)
     if not (tcs.Task.Wait(1000)) then failwith "reached timeout"
     let result = tcs.Task.Result
@@ -80,8 +81,8 @@ let ``It handles large messages from server`` () =
                 serverSideSocket <- Some socket
                 connectionSignal.Set() |> ignore)
 
-    let agent = newClient (Uri(url)) parser
-    agent.Error.Add(raise)
+    let client = new WebSocketClient(Uri(url), parser)
+    client.Error.Add(failwith)
 
     if connectionSignal.WaitOne(TimeSpan.FromSeconds(2.0)) then
         let socket = serverSideSocket |> Option.get
@@ -89,3 +90,27 @@ let ``It handles large messages from server`` () =
         if not (tcs.Task.Wait(1000)) then failwith "Reached timeout"
         let result = tcs.Task.Result
         result |> should equal msg
+
+[<Test>]
+let ``ensure no duplicate connections for websocket client`` () =
+    let parser = mkDemoAgent ignore
+    let url = $"ws://127.0.0.1:{(getFreePort ())}"
+    use mockServer = new WebSocketServer(url)
+    let tcs = System.Threading.Tasks.TaskCompletionSource<string>()
+    let mutable counter = 0
+
+    mockServer.Start(fun socket ->
+        socket.OnOpen <- fun () -> TestContext.Progress.WriteLine("Connected")
+
+        socket.OnMessage <-
+            fun message ->
+                counter <- counter + 1
+                if counter > 1 then tcs.SetResult(message)
+
+        socket.OnClose <- fun () -> printfn "Disconnected")
+
+    let client = new WebSocketClient(Uri(url), parser)
+    client.Error.Add(fun msg -> Assert.Fail($"Error event: {msg}"))
+    client.Agent.Post(SendMessage "hello")
+    client.Agent.Post(SendMessage "hello") // it should raise event error if double connection happened
+    if not (tcs.Task.Wait(1000)) then failwith "Timeout Happened"
