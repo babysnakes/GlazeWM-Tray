@@ -6,41 +6,78 @@ open GlazeWM.Tray.Models
 open FsToolkit.ErrorHandling
 open GlazeWM.Tray.WebSocketClient
 open Serilog
+open Farse
+open Farse.Operators
+
+type MessageParserEvent =
+    | ParseError of string
+    | NoCurrentWorkspace
 
 type private JsonType =
     | FocusChanged of JsonElement
     | QueryWorkspaces of JsonElement
+    | Unhandled of string
+
+type private MessageType =
+    | QueryResponseType of string
+    | SubscriptionResponseType of string
+    | UnSuccessfulResponseType of string
+
+type private MessageTypeResult = Result<MessageType option, string>
 
 type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     let queryWorkspacesPhrase = "query workspaces"
 
-    let errorEvent = Event<string>()
+    let errorEvent = Event<MessageParserEvent>()
     let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
+
+    /// Stops after the first matcher succeeds or in errors
+    let mergeMatcher (json: string) (f: string -> MessageTypeResult) (current: MessageTypeResult) : MessageTypeResult =
+        match current with
+        | Ok(Some _) -> current
+        | Ok None -> f json
+        | Error e -> Error e
 
     let extractRoot (json: string) =
         JsonDocument.Parse(json) |> _.RootElement
 
-    let (|SubEvent|_|) (elem: JsonElement) =
-        let mutable prop = Unchecked.defaultof<JsonElement>
+    let tryUnsuccessfulResponse (json: string) =
+        parser {
+            let! success = "success" &= Parse.bool
+            and! error = "error" ?= Parse.string
 
-        if
-            elem.TryGetProperty("messageType", &prop)
-            && prop.GetString() = "event_subscription"
-        then
-            let data = elem.GetProperty("data")
-            data.GetProperty("eventType").GetString() |> Some
-        else
-            None
+            if success then
+                return None
+            else
+                return
+                    error
+                    |> Option.defaultValue "Unspecified Error"
+                    |> UnSuccessfulResponseType
+                    |> Some
+        }
+        |> Parser.parse json
 
-    let (|QueryResp|_|) (elem: JsonElement) =
-        let mutable prop = Unchecked.defaultof<JsonElement>
+    let trySubscriptionEvent (json: string) =
+        parser {
+            let! messageType = "messageType" ?= Parse.string
 
-        if elem.TryGetProperty("clientMessage", &prop) then
-            prop.GetString() |> Some
-        else
-            None
+            if messageType = Some "event_subscription" then
+                let! eventType = "data.eventType" &= Parse.string
+                return eventType |> SubscriptionResponseType |> Some
+            else
+                return None
+        }
+        |> Parser.parse json
 
+    let tryQueryResponse (json: string) =
+        parser {
+            let! clientMessage = "clientMessage" ?= Parse.string
+            return clientMessage |> Option.map QueryResponseType
+        }
+        |> Parser.parse json
+
+    /// Check for the current workspace and notifies the handler if found. Returns optional current workspace.
     let handleWorkspacesResponse (wr: WorkspacesResponse) =
         match wr |> WorkspaceResponse.extractCurrentWorkspace with
         | Some current ->
@@ -51,9 +88,11 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
             Some(current, id)
         | None ->
-            errorEvent.Trigger "No current workspace found"
-            failwith "not implemented"
+            Log.Warning("No current workspace found in {Workspaces}", wr.Data)
+            errorEvent.Trigger NoCurrentWorkspace
+            None
 
+    /// Notifies the handler with the current workspace if identified in the provided state.
     let handleFocusChangedEvent (e: FocusChangedEvent) (state: WorkspacesResponse option) =
         option {
             let! wr = state
@@ -61,7 +100,6 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
             let wn = WorkspaceResponse.extractWorkspaceName w
             return wn |> CurrentWorkspace |> handler.Post
         }
-
 
     let messageParser =
         let agent =
@@ -86,16 +124,15 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
                             match handleWorkspacesResponse parsed with
                             | Some _ -> return! loop (Some parsed)
-                            | response ->
-                                errorEvent.Trigger $"handleWorkspacesResponse failed {response}"
-                                failwith "not implemented"
+                            | None -> ()
+                        | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
 
                         do! loop state
                     }
 
                 loop None)
 
-        agent.Error.Add(fun s -> errorEvent.Trigger s.Message)
+        agent.Error.Add(fun s -> errorEvent.Trigger(ParseError s.Message))
         agent
 
     [<CLIEvent>]
@@ -111,19 +148,29 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                         try
                             let root = extractRoot msg
 
-                            match root with
-                            | SubEvent "focus_changed" -> messageParser.Post(FocusChanged root)
-                            | QueryResp "query workspaces" -> messageParser.Post(QueryWorkspaces root)
-                            | _ -> Log.Warning("Unknown message: {Message}", root)
+                            tryUnsuccessfulResponse msg
+                            |> mergeMatcher msg trySubscriptionEvent
+                            |> mergeMatcher msg tryQueryResponse
+                            |> function
+                                | Ok(Some(UnSuccessfulResponseType msg)) -> handler.Post(UnSuccessfulResponse msg)
+                                | Ok(Some(QueryResponseType "query workspaces")) ->
+                                    messageParser.Post(QueryWorkspaces root)
+                                | Ok(Some(SubscriptionResponseType "focus_changed")) ->
+                                    messageParser.Post(FocusChanged root)
+                                | Ok _ -> messageParser.Post(Unhandled msg)
+                                | Error e ->
+                                    Log.Error("Error parsing message: {Ex}", e)
+                                    errorEvent.Trigger(ParseError e)
                         with ex ->
                             Log.Error("Error parsing message: {Ex}", ex)
+                            errorEvent.Trigger(ParseError ex.Message)
 
                         do! loop ()
                     }
 
                 loop ())
 
-        agent.Error.Add(fun s -> errorEvent.Trigger s.Message)
+        agent.Error.Add(fun s -> errorEvent.Trigger(ParseError s.Message))
         agent
 
     member this.SetWsClient(client: MailboxProcessor<WebSocketMessage>) = wsClient <- Some client

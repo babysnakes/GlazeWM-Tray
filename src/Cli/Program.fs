@@ -20,6 +20,7 @@ let demoHandler =
                 | CurrentWorkspace wn ->
                     Log.Information("Current workspace: {Name}, {DisplayName}", wn.Name, wn.DisplayName)
                 | Unknown msg -> Log.Information("Response: {Message}", msg)
+                | UnSuccessfulResponse msg -> Log.Error("Unsuccessful Response: {Message}", msg)
 
                 return! loop ()
             }
@@ -31,10 +32,8 @@ let port = if args.Length > 1 then args[1] else "6123"
 let uri = Uri($"ws://localhost:{port}/")
 let parser = Parser(demoHandler)
 let client = new WebSocketClient(uri, parser.Dispatcher())
+parser.SetWsClient client.Agent
 let mutable failureOccured = false
-
-// populate cache
-client.Agent.Post(SendMessage "query workspaces")
 
 client.Agent.Post(
     SendMessage

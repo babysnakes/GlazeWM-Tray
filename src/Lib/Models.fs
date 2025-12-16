@@ -34,6 +34,7 @@ type FocusChangedEvent =
 
 type ParsingOutput =
     | CurrentWorkspace of WorkspaceName
+    | UnSuccessfulResponse of string
     | Unknown of string // TODO
 
 module WorkspaceResponse =

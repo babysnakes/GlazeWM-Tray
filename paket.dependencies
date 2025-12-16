@@ -8,6 +8,7 @@ nuget FSharp.SystemTextJson ~> 1.4.36
 nuget FsToolkit.ErrorHandling ~> 5.1
 nuget Serilog ~> 4.3
 nuget Serilog.Sinks.Console ~> 6.1
+nuget Farse ~> 0.6.0
 
 // Test dependencies
 nuget coverlet.collector ~> 6.0.4

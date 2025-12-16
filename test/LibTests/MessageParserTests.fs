@@ -7,24 +7,44 @@ open LibTests.CommonHelpers
 open GlazeWM.Tray.Models
 open NUnit.Framework
 
-[<Test>]
-let ``correctly parses workspace response`` () =
-    let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
-    let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspaceName>()
+module ``workspace response parsing tests`` =
 
-    let handler: MailboxProcessor<ParsingOutput> =
-        mkDemoAgent (fun s ->
-            match s with
-            | CurrentWorkspace r -> tcs.SetResult(r)
-            | _ -> ())
+    [<Test>]
+    let ``correctly parses workspace response`` () =
+        let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
+        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspaceName>()
 
-    let parser = Parser(handler)
-    let dispatcher = parser.Dispatcher()
-    dispatcher.Post queryWorkspacesResponse
-    if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
-    let result = tcs.Task.Result
-    result.Name |> should equal "2"
-    result.DisplayName |> should equal "2"
+        let handler: MailboxProcessor<ParsingOutput> =
+            mkDemoAgent (fun s ->
+                match s with
+                | CurrentWorkspace r -> tcs.SetResult(r)
+                | _ -> ())
+
+        let parser = Parser(handler)
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post queryWorkspacesResponse
+        if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
+        let result = tcs.Task.Result
+        result.Name |> should equal "2"
+        result.DisplayName |> should equal "2"
+
+    [<Test>]
+    let ``MessageParser emits error when workspace response does not contain current workspace`` () =
+        let queryWorkspacesResponse =
+            loadFixture "basic-workspaces-response-with-no-focus.json"
+
+        let tcs = System.Threading.Tasks.TaskCompletionSource<MessageParserEvent>()
+        let handler = mkDemoAgent ignore
+        let parser = Parser(handler)
+        parser.Error.Add tcs.SetResult
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post queryWorkspacesResponse
+
+        if not (tcs.Task.Wait(1000)) then
+            Assert.Fail("timeout waiting for event error")
+
+        let result = tcs.Task.Result
+        result |> should be (ofCase <@ NoCurrentWorkspace @>)
 
 module ``focus-changed-event workflow tests`` =
 
@@ -75,5 +95,60 @@ module ``focus-changed-event workflow tests`` =
         result |> should be True
 
     [<Test>]
-    [<Ignore("not implemented yet")>]
-    let ``something bad happens when no state exist in the agent`` () = Assert.Fail("not implemented yet")
+    let ``when state is empty, it triggers a workspace refresh`` () =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
+        let eventJson = loadFixture "focus-changed-event-with-no-matching-workspace.json"
+        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+
+        let mockWsClient = mkDemoAgent tcs.SetResult
+
+        let parser = Parser(handler)
+        parser.SetWsClient mockWsClient
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post eventJson
+
+        if not (tcs.Task.Wait(1000)) then
+            Assert.Fail("Timeout waiting for workspace query message")
+
+        let result = tcs.Task.Result
+        result |> should equal (SendMessage "query workspaces")
+
+module ``Unsuccessful Responses`` =
+    [<Test>]
+    let ``unsuccessful response with error message returns the error`` () =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
+        let response = loadFixture "error-response-with-error.json"
+
+        let handler =
+            mkDemoAgent (fun s ->
+                match s with
+                | UnSuccessfulResponse _ -> tcs.SetResult()
+                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
+
+        let parser = Parser(handler)
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post response
+
+        if not (tcs.Task.Wait(1000)) then
+            Assert.Fail("timeout waiting for error message")
+
+    [<Test>]
+    let ``unsuccessful response without error message returns descriptive error`` () =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<string>()
+        let response = loadFixture "error-response-without-error.json"
+
+        let handler =
+            mkDemoAgent (fun s ->
+                match s with
+                | UnSuccessfulResponse r -> tcs.SetResult(r)
+                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
+
+        let parser = Parser(handler)
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post response
+
+        if not (tcs.Task.Wait(1000)) then
+            Assert.Fail("timeout waiting for error message")
+
+        let result = tcs.Task.Result
+        result |> should equal "Unspecified Error"

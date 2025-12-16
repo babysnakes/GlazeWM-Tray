@@ -1,0 +1,6 @@
+{
+  "messageType": "client_response",
+  "clientMessage": "query hello",
+  "data": null,
+  "success": false
+}
