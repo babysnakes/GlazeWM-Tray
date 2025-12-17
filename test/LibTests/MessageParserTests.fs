@@ -152,3 +152,44 @@ module ``Unsuccessful Responses`` =
 
         let result = tcs.Task.Result
         result |> should equal "Unspecified Error"
+
+module ``Actor Resilience Test`` =
+    type TestInput = { File: string; ErrorMessage: string }
+
+    let mkInvalidJsonTypes () =
+        [ { File = "non-json.json"
+            ErrorMessage = "'n' is an invalid start" }
+          { File = "invalid-workspace-response.json"
+            ErrorMessage = "Missing field for record type" }
+          { File = "invalid-focus-changed-event.json"
+            ErrorMessage = "Missing field for record type" } ]
+
+    [<TestCaseSource(nameof mkInvalidJsonTypes)>]
+    let ``keeps working after non/invalid json input`` (input: TestInput) =
+        let invalidJson = loadFixture input.File
+        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
+        let goodWorkspaceQuery = loadFixture "basic-workspaces-response.json"
+        let mutable error = ""
+
+        let handler =
+            mkDemoAgent (function
+                | CurrentWorkspace _ -> tcs.SetResult()
+                | msg -> TestContext.Progress.WriteLine($"handler invalid message: {msg}"))
+
+        let errorHandler =
+            function
+            | ParseError e ->
+                TestContext.Progress.WriteLine($"error handler parse error: {e}")
+                error <- e
+            | msg -> TestContext.Progress.WriteLine($"error handler invalid message: {msg}")
+
+        let parser = Parser(handler)
+        parser.Error.Add errorHandler
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post invalidJson
+        dispatcher.Post goodWorkspaceQuery
+
+        if not (tcs.Task.Wait(1000)) then
+            Assert.Fail($"timeout processing input: {input}")
+
+        error |> should contain input.ErrorMessage

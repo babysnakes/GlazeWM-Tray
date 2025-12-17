@@ -1,5 +1,6 @@
 ﻿namespace GlazeWM.Tray.MessageParser
 
+open System
 open System.Text.Json
 open System.Text.Json.Serialization
 open GlazeWM.Tray.Models
@@ -12,6 +13,7 @@ open Farse.Operators
 type MessageParserEvent =
     | ParseError of string
     | NoCurrentWorkspace
+    | AgentError of exn
 
 type private JsonType =
     | FocusChanged of JsonElement
@@ -111,28 +113,37 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                     async {
                         let! msg = inbox.Receive()
 
-                        match msg with
-                        | FocusChanged m ->
-                            Log.Debug("messageParser received focus changed: {Message}", m)
-                            let parsed = JsonSerializer.Deserialize<FocusChangedEvent>(m, options)
+                        try
+                            match msg with
+                            | FocusChanged m ->
+                                Log.Debug("messageParser received focus changed: {Message}", m)
+                                let parsed = JsonSerializer.Deserialize<FocusChangedEvent>(m, options)
 
-                            handleFocusChangedEvent parsed state
-                            |> Option.defaultWith (fun () -> SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
-                        | QueryWorkspaces m ->
-                            Log.Debug("messageParser received query workspaces: {Message}", m)
-                            let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
+                                handleFocusChangedEvent parsed state
+                                |> Option.defaultWith (fun () ->
+                                    SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
+                            | QueryWorkspaces m ->
+                                Log.Debug("messageParser received query workspaces: {Message}", m)
+                                let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
 
-                            match handleWorkspacesResponse parsed with
-                            | Some _ -> return! loop (Some parsed)
-                            | None -> ()
-                        | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
+                                match handleWorkspacesResponse parsed with
+                                | Some _ -> return! loop (Some parsed)
+                                | None -> ()
+                            | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
+                        with
+                        | :? OperationCanceledException as ex ->
+                            Log.Information "Parser cancelled"
+                            raise ex
+                        | ex ->
+                            Log.Error("Error parsing json {Ex}", ex)
+                            errorEvent.Trigger(ParseError ex.Message)
 
                         do! loop state
                     }
 
                 loop None)
 
-        agent.Error.Add(fun s -> errorEvent.Trigger(ParseError s.Message))
+        agent.Error.Add(fun exn -> errorEvent.Trigger(AgentError exn))
         agent
 
     [<CLIEvent>]
@@ -161,7 +172,11 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 | Error e ->
                                     Log.Error("Error parsing message: {Ex}", e)
                                     errorEvent.Trigger(ParseError e)
-                        with ex ->
+                        with
+                        | :? OperationCanceledException as ex ->
+                            Log.Information "Parser cancelled"
+                            raise ex
+                        | ex ->
                             Log.Error("Error parsing message: {Ex}", ex)
                             errorEvent.Trigger(ParseError ex.Message)
 
@@ -170,7 +185,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
                 loop ())
 
-        agent.Error.Add(fun s -> errorEvent.Trigger(ParseError s.Message))
+        agent.Error.Add(fun exn -> errorEvent.Trigger(AgentError exn))
         agent
 
     member this.SetWsClient(client: MailboxProcessor<WebSocketMessage>) = wsClient <- Some client
