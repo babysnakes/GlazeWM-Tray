@@ -17,6 +17,8 @@ type MessageParserEvent =
 
 type private JsonType =
     | FocusChanged of JsonElement
+    | PausedChanged of JsonElement
+    | BindingModesChanged of JsonElement
     | QueryWorkspaces of JsonElement
     | Unhandled of string
 
@@ -129,6 +131,15 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 match handleWorkspacesResponse parsed with
                                 | Some _ -> return! loop (Some parsed)
                                 | None -> ()
+                            | PausedChanged m ->
+                                Log.Debug("messageParser received pause changed: {Message}", m)
+                                let parsed = JsonSerializer.Deserialize<PauseChangedEvent>(m, options)
+                                handler.Post(Paused parsed.Data.IsPaused)
+                            | BindingModesChanged m ->
+                                Log.Debug("messageParser received binding modes changed: {Message}", m)
+                                let parsed = JsonSerializer.Deserialize<BindingModesChangedEvent>(m, options)
+                                let nb = (parsed.Data.NewBindingModes |> List.length) > 0
+                                handler.Post(NewBindingModes nb)
                             | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
                         with
                         | :? OperationCanceledException as ex ->
@@ -164,10 +175,14 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                             |> mergeMatcher msg tryQueryResponse
                             |> function
                                 | Ok(Some(UnSuccessfulResponseType msg)) -> handler.Post(UnSuccessfulResponse msg)
-                                | Ok(Some(QueryResponseType "query workspaces")) ->
-                                    messageParser.Post(QueryWorkspaces root)
                                 | Ok(Some(SubscriptionResponseType "focus_changed")) ->
                                     messageParser.Post(FocusChanged root)
+                                | Ok(Some(SubscriptionResponseType "binding_modes_changed")) ->
+                                    messageParser.Post(BindingModesChanged root)
+                                | Ok(Some(SubscriptionResponseType "pause_changed")) ->
+                                    messageParser.Post(PausedChanged root)
+                                | Ok(Some(QueryResponseType "query workspaces")) ->
+                                    messageParser.Post(QueryWorkspaces root)
                                 | Ok _ -> messageParser.Post(Unhandled msg)
                                 | Error e ->
                                     Log.Error("Error parsing message: {Ex}", e)

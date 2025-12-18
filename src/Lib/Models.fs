@@ -20,20 +20,26 @@ type Window =
 
 type WorkspaceResponseData = { Workspaces: Workspace list }
 
-type WorkspacesResponse =
-    { Data: WorkspaceResponseData
-      Success: bool
-      Error: string option }
+type WorkspacesResponse = { Data: WorkspaceResponseData }
 
 type FocusChangedEventData = { FocusedContainer: Window }
 
-type FocusChangedEvent =
-    { Data: FocusChangedEventData
-      Success: bool
-      Error: string option }
+type FocusChangedEvent = { Data: FocusChangedEventData }
+
+type PauseChangedEventData = { IsPaused: bool }
+
+type PauseChangedEvent = { Data: PauseChangedEventData }
+
+type BindingMode = { Name: string }
+
+type BindingModesChangedEventData = { NewBindingModes: BindingMode list }
+
+type BindingModesChangedEvent = { Data: BindingModesChangedEventData }
 
 type ParsingOutput =
     | CurrentWorkspace of WorkspaceName
+    | Paused of bool
+    | NewBindingModes of bool
     | UnSuccessfulResponse of string
     | Unknown of string // TODO
 

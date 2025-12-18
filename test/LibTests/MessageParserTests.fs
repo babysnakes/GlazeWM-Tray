@@ -138,8 +138,7 @@ module ``Unsuccessful Responses`` =
         let response = loadFixture "error-response-without-error.json"
 
         let handler =
-            mkDemoAgent (fun s ->
-                match s with
+            mkDemoAgent (function
                 | UnSuccessfulResponse r -> tcs.SetResult(r)
                 | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
 
@@ -153,6 +152,60 @@ module ``Unsuccessful Responses`` =
         let result = tcs.Task.Result
         result |> should equal "Unspecified Error"
 
+module ``Pause status`` =
+    type TestInput = { File: string; Expected: bool }
+
+    let input =
+        [ { File = "paused.json"
+            Expected = true }
+          { File = "unpaused.json"
+            Expected = false } ]
+
+    [<TestCaseSource(nameof input)>]
+    let ``Correctly parses pause status`` (input: TestInput) =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<bool>()
+        let response = loadFixture input.File
+
+        let handler =
+            mkDemoAgent (function
+                | Paused p -> tcs.SetResult(p)
+                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
+
+        let parser = Parser(handler)
+        let dispatcher = parser.Dispatcher()
+
+        dispatcher.Post response
+        if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout: pause status")
+        let result = tcs.Task.Result
+        result |> should equal input.Expected
+
+module ``Binding Modes`` =
+    type TestInput = { File: string; Expected: bool }
+
+    let input =
+        [ { File = "binding-modes-new.json"
+            Expected = true }
+          { File = "binding-modes-default.json"
+            Expected = false } ]
+
+    [<TestCaseSource(nameof input)>]
+    let ``Correctly parses binding modes`` (input: TestInput) =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<bool>()
+        let response = loadFixture input.File
+
+        let handler =
+            mkDemoAgent (function
+                | NewBindingModes b -> tcs.SetResult(b)
+                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
+
+        let parser = Parser(handler)
+        let dispatcher = parser.Dispatcher()
+
+        dispatcher.Post response
+        if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout: bindings")
+        let result = tcs.Task.Result
+        result |> should equal input.Expected
+
 module ``Actor Resilience Test`` =
     type TestInput = { File: string; ErrorMessage: string }
 
@@ -162,6 +215,10 @@ module ``Actor Resilience Test`` =
           { File = "invalid-workspace-response.json"
             ErrorMessage = "Missing field for record type" }
           { File = "invalid-focus-changed-event.json"
+            ErrorMessage = "Missing field for record type" }
+          { File = "binding-modes-invalid.json"
+            ErrorMessage = "Missing field for record type" }
+          { File = "invalid-paused-event.json"
             ErrorMessage = "Missing field for record type" } ]
 
     [<TestCaseSource(nameof mkInvalidJsonTypes)>]

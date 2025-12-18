@@ -1,0 +1,10 @@
+﻿{
+  "messageType": "event_subscription",
+  "data": {
+    "eventType": "pause_changed",
+    "isPaused": false
+  },
+  "error": null,
+  "subscriptionId": "e220efde-a651-4d53-b82e-7307f6e73b8f",
+  "success": true
+}
