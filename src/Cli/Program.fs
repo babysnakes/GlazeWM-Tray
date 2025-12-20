@@ -19,7 +19,6 @@ let demoHandler =
                 match msg with
                 | CurrentWorkspace wn ->
                     Log.Information("Current workspace: {Name}, {DisplayName}", wn.Name, wn.DisplayName)
-                | Unknown msg -> Log.Information("Response: {Message}", msg)
                 | Paused b -> Log.Information("Paused: {State}", b)
                 | NewBindingModes b -> Log.Information("New binding modes: {Modes}", b)
                 | UnSuccessfulResponse msg -> Log.Error("Unsuccessful Response: {Message}", msg)

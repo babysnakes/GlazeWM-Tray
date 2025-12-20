@@ -41,7 +41,6 @@ type ParsingOutput =
     | Paused of bool
     | NewBindingModes of bool
     | UnSuccessfulResponse of string
-    | Unknown of string // TODO
 
 module WorkspaceResponse =
 
