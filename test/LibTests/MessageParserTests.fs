@@ -255,8 +255,9 @@ module ``Actor Resilience Test`` =
             ErrorMessage = "'n' is an invalid start" }
           { File = "invalid-workspace-response.json"
             ErrorMessage = "Missing field for record type" }
+          // This case is unique, it fails before parsing for lack of wsClient
           { File = "invalid-focus-changed-event.json"
-            ErrorMessage = "Object reference not set to an instance of an object" }
+            ErrorMessage = "UnsetWsClient" }
           { File = "binding-modes-invalid.json"
             ErrorMessage = "Missing field for record type" }
           { File = "invalid-paused-event.json"
@@ -279,6 +280,7 @@ module ``Actor Resilience Test`` =
             | ParseError e ->
                 TestContext.Progress.WriteLine($"error handler parse error: {e}")
                 error <- e
+            | UnsetWsClient -> error <- "UnsetWsClient"
             | msg -> TestContext.Progress.WriteLine($"error handler invalid message: {msg}")
 
         let parser = Parser(handler)
@@ -291,3 +293,25 @@ module ``Actor Resilience Test`` =
             Assert.Fail($"timeout processing input: {input}")
 
         error |> should contain input.ErrorMessage
+
+    [<Test>]
+    let ``wsClient option emits specific event when called before being set`` () =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
+
+        let json =
+            """{"messageType":"event_subscription","data":{"eventType":"workspace_deactivated"},"error":null,"success":true}"""
+
+        let handler =
+            mkDemoAgent (fun inp -> TestContext.Progress.WriteLine($"handler: {inp}"))
+
+        let parser = Parser(handler)
+
+        parser.Error.Add (function
+            | UnsetWsClient -> tcs.SetResult()
+            | invalid -> TestContext.Progress.WriteLine($"unexpected message: {invalid}"))
+
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post json
+
+        if not (tcs.Task.Wait(1000)) then
+            Assert.Fail($"timeout unset wsClient")

@@ -14,6 +14,7 @@ open Farse.Operators
 type MessageParserEvent =
     | ParseError of string
     | NoCurrentWorkspace
+    | UnsetWsClient
     | AgentError of exn
 
 type private JsonType =
@@ -37,6 +38,13 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     let errorEvent = Event<MessageParserEvent>()
     let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
+
+    let sendWebSocketMessage (msg: string) =
+        match wsClient with
+        | Some client -> client.Post(SendMessage msg)
+        | None ->
+            Log.Error("No websocket client set")
+            errorEvent.Trigger UnsetWsClient
 
     /// Stops after the first matcher succeeds or in errors
     let mergeMatcher (json: string) (f: string -> MessageTypeResult) (current: MessageTypeResult) : MessageTypeResult =
@@ -134,8 +142,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
                                 state
                                 |> Option.bind (handleFocusChangedEvent m)
-                                |> Option.defaultWith (fun () ->
-                                    SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
+                                |> Option.defaultWith (fun () -> sendWebSocketMessage queryWorkspacesPhrase)
                             | QueryWorkspaces m ->
                                 Log.Debug("messageParser received query workspaces: {Message}", m)
                                 let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
@@ -152,7 +159,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 let parsed = JsonSerializer.Deserialize<BindingModesChangedEvent>(m, options)
                                 let nb = (parsed.Data.NewBindingModes |> List.isEmpty |> not)
                                 handler.Post(NewBindingModes nb)
-                            | WorkspaceStar -> wsClient.Value.Post(SendMessage queryWorkspacesPhrase)
+                            | WorkspaceStar -> sendWebSocketMessage queryWorkspacesPhrase
                             | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
                         with
                         | :? OperationCanceledException as ex ->
