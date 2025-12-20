@@ -206,6 +206,30 @@ module ``Binding Modes`` =
         let result = tcs.Task.Result
         result |> should equal input.Expected
 
+module ``Workspace activated-deactivated-updated`` =
+    let event = [ "workspace_updated"; "workspace_activated"; "workspace_deactivated" ]
+
+    let mkMinimalJson (evt: string) =
+        $"""{{"messageType":"event_subscription","data":{{"eventType":"{evt}"}},"error":null,"success":true}}"""
+
+    [<TestCaseSource(nameof event)>]
+    let ``Workspace-* events trigger workspaces query`` (evt: string) =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
+        let json = mkMinimalJson evt
+        let handler = mkDemoAgent ignore
+
+        let mockWsClient =
+            mkDemoAgent (function
+                | SendMessage "query workspaces" -> tcs.SetResult()
+                | invalid -> TestContext.Progress.WriteLine($"unexpected message: {invalid}"))
+
+        let parser = Parser(handler)
+        parser.SetWsClient mockWsClient
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post json
+
+        if not (tcs.Task.Wait(1000)) then Assert.Fail($"timeout: {evt}")
+
 module ``Actor Resilience Test`` =
     type TestInput = { File: string; ErrorMessage: string }
 

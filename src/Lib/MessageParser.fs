@@ -21,6 +21,7 @@ type private JsonType =
     | BindingModesChanged of JsonElement
     | QueryWorkspaces of JsonElement
     | Unhandled of string
+    | WorkspaceStar
 
 type private MessageType =
     | QueryResponseType of string
@@ -138,8 +139,9 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                             | BindingModesChanged m ->
                                 Log.Debug("messageParser received binding modes changed: {Message}", m)
                                 let parsed = JsonSerializer.Deserialize<BindingModesChangedEvent>(m, options)
-                                let nb = (parsed.Data.NewBindingModes |> List.length) > 0
+                                let nb = (parsed.Data.NewBindingModes |> List.isEmpty |> not)
                                 handler.Post(NewBindingModes nb)
+                            | WorkspaceStar -> wsClient.Value.Post(SendMessage queryWorkspacesPhrase)
                             | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
                         with
                         | :? OperationCanceledException as ex ->
@@ -181,6 +183,10 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                     messageParser.Post(BindingModesChanged root)
                                 | Ok(Some(SubscriptionResponseType "pause_changed")) ->
                                     messageParser.Post(PausedChanged root)
+                                | Ok(Some(SubscriptionResponseType "workspace_updated"))
+                                | Ok(Some(SubscriptionResponseType "workspace_deactivated"))
+                                | Ok(Some(SubscriptionResponseType "workspace_activated")) ->
+                                    messageParser.Post(WorkspaceStar)
                                 | Ok(Some(QueryResponseType "query workspaces")) ->
                                     messageParser.Post(QueryWorkspaces root)
                                 | Ok _ -> messageParser.Post(Unhandled msg)
