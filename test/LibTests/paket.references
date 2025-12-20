@@ -6,3 +6,4 @@ NUnit
 NUnit.Analyzers
 NUnit3TestAdapter
 FSharp.Core
+Serilog.Sinks.Console

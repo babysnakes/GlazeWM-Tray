@@ -5,6 +5,7 @@ open System.Text.Json
 open System.Text.Json.Serialization
 open GlazeWM.Tray.Models
 open FsToolkit.ErrorHandling
+open GlazeWM.Tray.Models.WorkspaceResponse
 open GlazeWM.Tray.WebSocketClient
 open Serilog
 open Farse
@@ -16,7 +17,7 @@ type MessageParserEvent =
     | AgentError of exn
 
 type private JsonType =
-    | FocusChanged of JsonElement
+    | FocusChanged of string
     | PausedChanged of JsonElement
     | BindingModesChanged of JsonElement
     | QueryWorkspaces of JsonElement
@@ -84,12 +85,9 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     /// Check for the current workspace and notifies the handler if found. Returns optional current workspace.
     let handleWorkspacesResponse (wr: WorkspacesResponse) =
-        match wr |> WorkspaceResponse.extractCurrentWorkspace with
+        match wr |> extractCurrentWorkspace with
         | Some current ->
-            current
-            |> WorkspaceResponse.extractWorkspaceName
-            |> CurrentWorkspace
-            |> handler.Post
+            current |> extractWorkspaceName |> CurrentWorkspace |> handler.Post
 
             Some(current, id)
         | None ->
@@ -98,13 +96,26 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
             None
 
     /// Notifies the handler with the current workspace if identified in the provided state.
-    let handleFocusChangedEvent (e: FocusChangedEvent) (state: WorkspacesResponse option) =
-        option {
-            let! wr = state
-            let! w = wr |> WorkspaceResponse.tryGetWorkspace e.Data.FocusedContainer.ParentId
-            let wn = WorkspaceResponse.extractWorkspaceName w
-            return wn |> CurrentWorkspace |> handler.Post
+    let handleFocusChangedEvent (json: string) (state: WorkspacesResponse) =
+        parser {
+            let! containerType = "data.focusedContainer.type" &= Parse.string
+
+            if containerType = "window" then
+                let! parentId = "data.focusedContainer.parentId" &= Parse.guid
+
+                return
+                    tryGetWorkspace parentId state
+                    |> Option.map extractWorkspaceName
+                    |> Option.map (CurrentWorkspace >> handler.Post)
+            else
+                return None
         }
+        |> Parser.parse json
+        |> Result.teeError (fun e ->
+            Log.Error("Error parsing focus changed event: {Ex}", e)
+            errorEvent.Trigger(ParseError e))
+        |> Result.toOption
+        |> Option.flatten
 
     let messageParser =
         let agent =
@@ -120,9 +131,9 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                             match msg with
                             | FocusChanged m ->
                                 Log.Debug("messageParser received focus changed: {Message}", m)
-                                let parsed = JsonSerializer.Deserialize<FocusChangedEvent>(m, options)
 
-                                handleFocusChangedEvent parsed state
+                                state
+                                |> Option.bind (handleFocusChangedEvent m)
                                 |> Option.defaultWith (fun () ->
                                     SendMessage queryWorkspacesPhrase |> wsClient.Value.Post)
                             | QueryWorkspaces m ->
@@ -178,7 +189,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                             |> function
                                 | Ok(Some(UnSuccessfulResponseType msg)) -> handler.Post(UnSuccessfulResponse msg)
                                 | Ok(Some(SubscriptionResponseType "focus_changed")) ->
-                                    messageParser.Post(FocusChanged root)
+                                    messageParser.Post(FocusChanged msg)
                                 | Ok(Some(SubscriptionResponseType "binding_modes_changed")) ->
                                     messageParser.Post(BindingModesChanged root)
                                 | Ok(Some(SubscriptionResponseType "pause_changed")) ->

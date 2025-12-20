@@ -113,6 +113,23 @@ module ``focus-changed-event workflow tests`` =
         let result = tcs.Task.Result
         result |> should equal (SendMessage "query workspaces")
 
+    [<Test>]
+    let ``when emitted with other container then window, emits workspace query`` () =
+        let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
+        let eventJson = loadFixture "focus-changed-event-with-workspace-container.json"
+        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+        let mockWsClient = mkDemoAgent tcs.SetResult
+        let parser = Parser(handler)
+        parser.SetWsClient mockWsClient
+        let dispatcher = parser.Dispatcher()
+        dispatcher.Post eventJson
+
+        if not (tcs.Task.Wait(1000)) then
+            Assert.Fail("Timeout: non window container")
+
+        let result = tcs.Task.Result
+        result |> should equal (SendMessage "query workspaces")
+
 module ``Unsuccessful Responses`` =
     [<Test>]
     let ``unsuccessful response with error message returns the error`` () =
@@ -239,7 +256,7 @@ module ``Actor Resilience Test`` =
           { File = "invalid-workspace-response.json"
             ErrorMessage = "Missing field for record type" }
           { File = "invalid-focus-changed-event.json"
-            ErrorMessage = "Missing field for record type" }
+            ErrorMessage = "Object reference not set to an instance of an object" }
           { File = "binding-modes-invalid.json"
             ErrorMessage = "Missing field for record type" }
           { File = "invalid-paused-event.json"
