@@ -12,6 +12,7 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="GlobalSetup.fs" />
     <Compile Include="CommonHelpers.fs" />
     <Compile Include="ModelsTests.fs" />
     <Compile Include="MessageParserTests.fs" />
