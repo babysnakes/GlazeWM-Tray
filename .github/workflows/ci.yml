@@ -1,0 +1,30 @@
+name: Build and Test GlazeWM-Tray
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install Just
+        uses: MinoruSekine/setup-scoop@v4.0.2
+        with:
+          apps: just
+
+      - name: Run CI tasks
+        run: just ci
+

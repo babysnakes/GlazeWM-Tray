@@ -1,0 +1,7 @@
+{
+  "messageType": "client_response",
+  "clientMessage": "query hello",
+  "data": null,
+  "error": "error: unrecognized subcommand 'hello'\n\n  tip: a similar subcommand exists: 'help'\n\nUsage: query <COMMAND>\n\nFor more information, try '--help'.\n",
+  "success": false
+}

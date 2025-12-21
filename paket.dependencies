@@ -1,0 +1,20 @@
+source https://api.nuget.org/v3/index.json
+framework net8.0, netstandard2.0
+
+// Force FSharp.Core version, otherwise tools set it to all sorts of versions...
+nuget FSharp.Core ~> 8.0
+
+nuget FSharp.SystemTextJson ~> 1.4.36
+nuget FsToolkit.ErrorHandling ~> 5.1
+nuget Serilog ~> 4.3
+nuget Serilog.Sinks.Console ~> 6.1
+nuget Farse ~> 0.6.0
+
+// Test dependencies
+nuget coverlet.collector ~> 6.0.4
+nuget Fleck ~> 1.2
+nuget FsUnit ~> 7.1
+nuget Microsoft.NET.Test.Sdk ~> 18.0
+nuget NUnit ~> 4.4
+nuget NUnit.Analyzers ~> 4.11
+nuget NUnit3TestAdapter ~> 6.0

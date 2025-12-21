@@ -1,0 +1,279 @@
+﻿{
+  "messageType": "event_subscription",
+  "data": {
+    "eventType": "binding_modes_changed",
+    "newBindingModes": [
+      {
+        "displayName": null,
+        "keybindings": [
+          {
+            "bindings": [
+              "h",
+              "left"
+            ],
+            "commands": [
+              {
+                "Resize": {
+                  "width": {
+                    "amount": -0.02,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "l",
+              "right"
+            ],
+            "commands": [
+              {
+                "Resize": {
+                  "width": {
+                    "amount": 0.02,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "k",
+              "up"
+            ],
+            "commands": [
+              {
+                "Resize": {
+                  "width": null,
+                  "height": {
+                    "amount": 0.02,
+                    "unit": "percentage"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "j",
+              "down"
+            ],
+            "commands": [
+              {
+                "Resize": {
+                  "width": null,
+                  "height": {
+                    "amount": -0.02,
+                    "unit": "percentage"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "2"
+            ],
+            "commands": [
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.2,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "3"
+            ],
+            "commands": [
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.3,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "4"
+            ],
+            "commands": [
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.4,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "5"
+            ],
+            "commands": [
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.5,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "6"
+            ],
+            "commands": [
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.6,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "7"
+            ],
+            "commands": [
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.7,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "8"
+            ],
+            "commands": [
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.8,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "l"
+            ],
+            "commands": [
+              {
+                "Move": {
+                  "direction": "right",
+                  "workspace_in_direction": null,
+                  "workspace": null,
+                  "next_active_workspace": false,
+                  "prev_active_workspace": false,
+                  "next_workspace": false,
+                  "prev_workspace": false,
+                  "next_active_workspace_on_monitor": false,
+                  "prev_active_workspace_on_monitor": false,
+                  "recent_workspace": false
+                }
+              },
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.35,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              },
+              {
+                "WmDisableBindingMode": {
+                  "name": "resize"
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "h"
+            ],
+            "commands": [
+              {
+                "Move": {
+                  "direction": "left",
+                  "workspace_in_direction": null,
+                  "workspace": null,
+                  "next_active_workspace": false,
+                  "prev_active_workspace": false,
+                  "next_workspace": false,
+                  "prev_workspace": false,
+                  "next_active_workspace_on_monitor": false,
+                  "prev_active_workspace_on_monitor": false,
+                  "recent_workspace": false
+                }
+              },
+              {
+                "Size": {
+                  "width": {
+                    "amount": 0.65,
+                    "unit": "percentage"
+                  },
+                  "height": null
+                }
+              },
+              {
+                "WmDisableBindingMode": {
+                  "name": "resize"
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              "escape",
+              "enter"
+            ],
+            "commands": [
+              {
+                "WmDisableBindingMode": {
+                  "name": "resize"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "error": null,
+  "subscriptionId": "e220efde-a651-4d53-b82e-7307f6e73b8f",
+  "success": true
+}

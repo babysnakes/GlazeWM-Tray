@@ -1,0 +1,56 @@
+﻿{
+  "messageType": "event_subscription",
+  "data": {
+    "eventType": "focus_changed",
+    "focusedContainer": {
+      "type": "window",
+      "id": "865a49ff-2d76-4098-a06c-d241e8808083",
+      "parentId": "edc92ebc-78f3-4b88-a819-d1af6ecd2c31",
+      "hasFocus": true,
+      "tilingSize": null,
+      "width": 1456,
+      "height": 1011,
+      "x": 1810,
+      "y": 133,
+      "state": {
+        "type": "floating",
+        "centered": false,
+        "shownOnTop": false
+      },
+      "prevState": null,
+      "displayState": "shown",
+      "borderDelta": {
+        "left": {
+          "amount": 0,
+          "unit": "pixel"
+        },
+        "top": {
+          "amount": 0,
+          "unit": "pixel"
+        },
+        "right": {
+          "amount": 0,
+          "unit": "pixel"
+        },
+        "bottom": {
+          "amount": 0,
+          "unit": "pixel"
+        }
+      },
+      "floatingPlacement": {
+        "left": 1810,
+        "top": 133,
+        "right": 3266,
+        "bottom": 1144
+      },
+      "handle": 48042446,
+      "title": "glazetray/glazetray.go at main · Drysua/glazetray and 2 more pages - Personal - Microsoft? Edge",
+      "className": "Chrome_WidgetWin_1",
+      "processName": "msedge",
+      "activeDrag": null
+    }
+  },
+  "error": null,
+  "subscriptionId": "b0444e45-ed99-46e4-826d-e20ebc88b1a4",
+  "success": true
+}

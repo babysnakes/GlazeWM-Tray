@@ -1,0 +1,393 @@
+{
+  "clientMessage": "query workspaces",
+  "data": {
+    "workspaces": [
+      {
+        "type": "workspace",
+        "id": "b6668705-035a-4de7-8425-0a4e755790fa",
+        "name": "1",
+        "displayName": null,
+        "parentId": "f90e0609-e1d2-42c0-a44d-4678d2a7a60e",
+        "children": [
+          {
+            "type": "window",
+            "id": "272827c6-95fa-47ea-96f4-60a0db070893",
+            "parentId": "b6668705-035a-4de7-8425-0a4e755790fa",
+            "hasFocus": false,
+            "tilingSize": null,
+            "width": 1456,
+            "height": 1011,
+            "x": 1800,
+            "y": 123,
+            "state": {
+              "type": "floating",
+              "centered": false,
+              "shownOnTop": false
+            },
+            "prevState": {
+              "type": "fullscreen",
+              "maximized": false,
+              "shownOnTop": false
+            },
+            "displayState": "hidden",
+            "borderDelta": {
+              "left": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "top": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "right": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "bottom": {
+                "amount": 0,
+                "unit": "pixel"
+              }
+            },
+            "floatingPlacement": {
+              "left": 1800,
+              "top": 123,
+              "right": 3256,
+              "bottom": 1134
+            },
+            "handle": 197802,
+            "title": "שידור חי עם כל העדכונים - 13+ and 2 more pages - Personal - Microsoft​ Edge",
+            "className": "Chrome_WidgetWin_1",
+            "processName": "msedge",
+            "activeDrag": null
+          },
+          {
+            "type": "window",
+            "id": "bdd6d25b-cff5-48b1-acec-a8fc8c83d66a",
+            "parentId": "b6668705-035a-4de7-8425-0a4e755790fa",
+            "hasFocus": false,
+            "tilingSize": null,
+            "width": 1343,
+            "height": 1053,
+            "x": 533,
+            "y": 322,
+            "state": {
+              "type": "minimized"
+            },
+            "prevState": {
+              "type": "floating",
+              "centered": false,
+              "shownOnTop": false
+            },
+            "displayState": "hidden",
+            "borderDelta": {
+              "left": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "top": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "right": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "bottom": {
+                "amount": 0,
+                "unit": "pixel"
+              }
+            },
+            "floatingPlacement": {
+              "left": 533,
+              "top": 322,
+              "right": 1876,
+              "bottom": 1375
+            },
+            "handle": 263168,
+            "title": "Feedly - All Personal Feeds",
+            "className": "Chrome_WidgetWin_1",
+            "processName": "msedge",
+            "activeDrag": null
+          },
+          {
+            "type": "window",
+            "id": "45fa17be-0738-4130-8da1-a3c0d5fd7e83",
+            "parentId": "b6668705-035a-4de7-8425-0a4e755790fa",
+            "hasFocus": false,
+            "tilingSize": null,
+            "width": 1502,
+            "height": 1213,
+            "x": 175,
+            "y": 121,
+            "state": {
+              "type": "floating",
+              "centered": false,
+              "shownOnTop": false
+            },
+            "prevState": {
+              "type": "minimized"
+            },
+            "displayState": "hidden",
+            "borderDelta": {
+              "left": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "top": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "right": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "bottom": {
+                "amount": 0,
+                "unit": "pixel"
+              }
+            },
+            "floatingPlacement": {
+              "left": 175,
+              "top": 121,
+              "right": 1677,
+              "bottom": 1334
+            },
+            "handle": 67618,
+            "title": "All Inboxes - eM Client",
+            "className": "WindowsForms10.Window.8.app.0.5c39d4_r3_ad1",
+            "processName": "MailClient",
+            "activeDrag": null
+          },
+          {
+            "type": "window",
+            "id": "e550ac1d-befa-41a3-b594-c3b5705058b5",
+            "parentId": "b6668705-035a-4de7-8425-0a4e755790fa",
+            "hasFocus": false,
+            "tilingSize": null,
+            "width": 1349,
+            "height": 1102,
+            "x": 192,
+            "y": 56,
+            "state": {
+              "type": "floating",
+              "centered": false,
+              "shownOnTop": false
+            },
+            "prevState": {
+              "type": "minimized"
+            },
+            "displayState": "hidden",
+            "borderDelta": {
+              "left": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "top": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "right": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "bottom": {
+                "amount": 0,
+                "unit": "pixel"
+              }
+            },
+            "floatingPlacement": {
+              "left": 192,
+              "top": 56,
+              "right": 1541,
+              "bottom": 1158
+            },
+            "handle": 787580,
+            "title": "Microsoft To Do",
+            "className": "ApplicationFrameWindow",
+            "processName": "ApplicationFrameHost",
+            "activeDrag": null
+          }
+        ],
+        "childFocusOrder": [
+          "272827c6-95fa-47ea-96f4-60a0db070893",
+          "e550ac1d-befa-41a3-b594-c3b5705058b5",
+          "45fa17be-0738-4130-8da1-a3c0d5fd7e83",
+          "bdd6d25b-cff5-48b1-acec-a8fc8c83d66a"
+        ],
+        "hasFocus": false,
+        "isDisplayed": false,
+        "width": 3420,
+        "height": 1372,
+        "x": 10,
+        "y": 10,
+        "tilingDirection": "horizontal"
+      },
+      {
+        "type": "workspace",
+        "id": "edc92ebc-78f3-4b88-a819-d1af6ecd2c31",
+        "name": "2",
+        "displayName": null,
+        "parentId": "f90e0609-e1d2-42c0-a44d-4678d2a7a60e",
+        "children": [
+          {
+            "type": "window",
+            "id": "472a47ba-fedd-4c93-8a4f-f40f46ad42d8",
+            "parentId": "edc92ebc-78f3-4b88-a819-d1af6ecd2c31",
+            "hasFocus": false,
+            "tilingSize": null,
+            "width": 1386,
+            "height": 1049,
+            "x": 1365,
+            "y": 161,
+            "state": {
+              "type": "floating",
+              "centered": false,
+              "shownOnTop": false
+            },
+            "prevState": null,
+            "displayState": "shown",
+            "borderDelta": {
+              "left": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "top": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "right": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "bottom": {
+                "amount": 0,
+                "unit": "pixel"
+              }
+            },
+            "floatingPlacement": {
+              "left": 1365,
+              "top": 161,
+              "right": 2751,
+              "bottom": 1210
+            },
+            "handle": 90704800,
+            "title": "WS – ws.fsx",
+            "className": "SunAwtFrame",
+            "processName": "rider64",
+            "activeDrag": null
+          },
+          {
+            "type": "window",
+            "id": "d6660bff-8cbf-46bd-bd4a-627cda90fc09",
+            "parentId": "edc92ebc-78f3-4b88-a819-d1af6ecd2c31",
+            "hasFocus": true,
+            "tilingSize": null,
+            "width": 1115,
+            "height": 658,
+            "x": 77,
+            "y": 78,
+            "state": {
+              "type": "floating",
+              "centered": false,
+              "shownOnTop": false
+            },
+            "prevState": {
+              "type": "tiling"
+            },
+            "displayState": "shown",
+            "borderDelta": {
+              "left": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "top": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "right": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "bottom": {
+                "amount": 0,
+                "unit": "pixel"
+              }
+            },
+            "floatingPlacement": {
+              "left": 77,
+              "top": 78,
+              "right": 1192,
+              "bottom": 736
+            },
+            "handle": 12124434,
+            "title": "PowerShell",
+            "className": "CASCADIA_HOSTING_WINDOW_CLASS",
+            "processName": "WindowsTerminal",
+            "activeDrag": null
+          },
+          {
+            "type": "window",
+            "id": "f2f8cb52-9524-4ab6-87fc-d89fb7739d32",
+            "parentId": "edc92ebc-78f3-4b88-a819-d1af6ecd2c31",
+            "hasFocus": false,
+            "tilingSize": null,
+            "width": 1373,
+            "height": 1058,
+            "x": 1758,
+            "y": 245,
+            "state": {
+              "type": "floating",
+              "centered": false,
+              "shownOnTop": false
+            },
+            "prevState": null,
+            "displayState": "shown",
+            "borderDelta": {
+              "left": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "top": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "right": {
+                "amount": 0,
+                "unit": "pixel"
+              },
+              "bottom": {
+                "amount": 0,
+                "unit": "pixel"
+              }
+            },
+            "floatingPlacement": {
+              "left": 1758,
+              "top": 245,
+              "right": 3131,
+              "bottom": 1303
+            },
+            "handle": 56427564,
+            "title": "Sample JSON Responses - Development - Obsidian v1.9.14",
+            "className": "Chrome_WidgetWin_1",
+            "processName": "Obsidian",
+            "activeDrag": null
+          }
+        ],
+        "childFocusOrder": [
+          "d6660bff-8cbf-46bd-bd4a-627cda90fc09",
+          "f2f8cb52-9524-4ab6-87fc-d89fb7739d32",
+          "472a47ba-fedd-4c93-8a4f-f40f46ad42d8"
+        ],
+        "hasFocus": false,
+        "isDisplayed": true,
+        "width": 3420,
+        "height": 1372,
+        "x": 10,
+        "y": 10,
+        "tilingDirection": "horizontal"
+      }
+    ]
+  },
+  "error": null,
+  "success": true
+}

@@ -1,0 +1,26 @@
+﻿
+{
+  "messageType": "event_subscription",
+  "data": {
+    "eventType": "focus_changed",
+    "focusedContainer": {
+      "type": "workspace",
+      "id": "cd0a1fbd-db63-42ec-a7d0-5d43c4644820",
+      "name": "3",
+      "displayName": null,
+      "parentId": "f797b4f4-8fca-49a0-ae32-e07c59c76b89",
+      "children": [],
+      "childFocusOrder": [],
+      "hasFocus": true,
+      "isDisplayed": true,
+      "width": 3420,
+      "height": 1372,
+      "x": 10,
+      "y": 10,
+      "tilingDirection": "horizontal"
+    }
+  },
+  "error": null,
+  "subscriptionId": "cd31e32d-6da2-496c-acb0-6e237a87ba6a",
+  "success": true
+}
