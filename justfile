@@ -25,6 +25,6 @@ restore:
 	dotnet paket restore
 
 [doc('Run CI checks and tests')]
-ci: restore check
+ci: restore check-format
 	dotnet build
 	dotnet test
