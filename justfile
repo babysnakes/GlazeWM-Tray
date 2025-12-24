@@ -28,3 +28,9 @@ restore:
 ci: restore check-format
 	dotnet build
 	dotnet test
+
+[working-directory: 'resources']
+[doc('Generate icons from PNG images (exported from Affinity)')]
+icons:
+	ls
+	@powershell -c '.\gen-icons.ps1'
