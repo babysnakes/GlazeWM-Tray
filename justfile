@@ -32,5 +32,5 @@ ci: restore check-format
 [working-directory: 'resources']
 [doc('Generate icons from PNG images (exported from Affinity)')]
 icons:
-	ls
 	@powershell -c '.\gen-icons.ps1'
+	mv generated/*.ico ../src/TrayApp/Assets/

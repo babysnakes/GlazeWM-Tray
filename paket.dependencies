@@ -10,6 +10,11 @@ nuget Serilog ~> 4.3
 nuget Serilog.Sinks.Console ~> 6.1
 nuget Farse ~> 0.6.0
 
+// Avalonia
+nuget Avalonia.Desktop ~> 11.3.10
+nuget Avalonia.Themes.Fluent ~> 11.3.10
+nuget Avalonia.FuncUI ~> 1.5.2
+
 // Test dependencies
 nuget coverlet.collector ~> 6.0.4
 nuget Fleck ~> 1.2
