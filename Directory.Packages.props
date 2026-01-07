@@ -1,0 +1,24 @@
+<Project>
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageVersion Include="FSharp.SystemTextJson" Version="1.4.36" />
+        <PackageVersion Include="FsToolkit.ErrorHandling" Version="5.1.0" />
+        <PackageVersion Include="Serilog" Version="4.3.0" />
+        <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+        <PackageVersion Include="Farse" Version="0.6.0" />
+        <!-- Avalonia -->
+        <PackageVersion Include="Avalonia.Desktop" Version="11.3.10"/>
+        <PackageVersion Include="Avalonia.FuncUI" Version="1.5.2"/>
+        <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.10"/>
+        <!-- Testing Dependencies-->
+        <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+        <PackageVersion Include="Fleck" Version="1.2.0" />
+        <PackageVersion Include="FsUnit" Version="7.1.1" />
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+        <PackageVersion Include="NUnit" Version="4.4.0" />
+        <PackageVersion Include="NUnit.Analyzers" Version="4.11.2" />
+        <PackageVersion Include="NUnit3TestAdapter" Version="6.0.0" />
+    </ItemGroup>
+</Project>

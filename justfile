@@ -22,7 +22,7 @@ check: check-format lint
 [doc('Restore from scratch honering the lock file')]
 restore:
 	dotnet tool restore
-	dotnet paket restore
+	dotnet restore
 
 [doc('Run CI checks and tests')]
 ci: restore check-format

@@ -1,9 +1,0 @@
-coverlet.collector
-Fleck
-FsUnit
-Microsoft.NET.Test.Sdk
-NUnit
-NUnit.Analyzers
-NUnit3TestAdapter
-FSharp.Core
-Serilog.Sinks.Console
