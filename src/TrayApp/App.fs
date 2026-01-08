@@ -71,8 +71,9 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
     /// logic for matching state to icon
     let matchStateToIcon (state: TrayIconState) =
-        let theme = if state.Paused then "g" else "w"
-        let key = $"icon-{state.Workspace.Name}-{theme}"
+        let theme = if (state.Paused || state.CustomBinding) then "g" else "w"
+        let name = if state.CustomBinding then "qm" else state.Workspace.Name
+        let key = $"icon-{name}-{theme}"
 
         workspaceIcons
         |> Map.tryFind key
