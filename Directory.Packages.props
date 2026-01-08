@@ -7,6 +7,7 @@
         <PackageVersion Include="FsToolkit.ErrorHandling" Version="5.1.0" />
         <PackageVersion Include="Serilog" Version="4.3.0" />
         <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+        <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
         <PackageVersion Include="Farse" Version="0.6.0" />
         <!-- Avalonia -->
         <PackageVersion Include="Avalonia.Desktop" Version="11.3.10"/>

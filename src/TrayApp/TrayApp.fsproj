@@ -25,6 +25,7 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.FuncUI" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
-    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
   </ItemGroup>
 </Project>

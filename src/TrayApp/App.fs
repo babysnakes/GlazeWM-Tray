@@ -58,7 +58,7 @@ module Assets =
         |> List.map (fun name -> name, WindowIcon(System.IO.Path.Combine("Assets", $"{name}.ico")))
         |> Map.ofList
 
-type App(levelSwitch: LoggingLevelSwitch) =
+type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
     inherit Application()
 
     let mutable workspaceIcons: Map<string, WindowIcon> = Map.empty
@@ -73,7 +73,10 @@ type App(levelSwitch: LoggingLevelSwitch) =
     let matchStateToIcon (state: TrayIconState) =
         let theme = if state.Paused then "g" else "w"
         let key = $"icon-{state.Workspace.Name}-{theme}"
-        workspaceIcons |> Map.tryFind key |> Option.defaultValue workspaceIcons["icon-qm-w"]
+
+        workspaceIcons
+        |> Map.tryFind key
+        |> Option.defaultValue workspaceIcons["icon-qm-w"]
 
     /// Toggle show/hide of the main window
     let toggleMainWindow (desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
@@ -153,9 +156,17 @@ type App(levelSwitch: LoggingLevelSwitch) =
         |> List.map (SendMessage >> client.Agent.Post)
         |> ignore
 
+    let openLogsDir _ =
+        let startInfo = System.Diagnostics.ProcessStartInfo(logDir)
+        startInfo.UseShellExecute <- true
+        System.Diagnostics.Process.Start(startInfo) |> ignore
+
     member private this.MkMenu(desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
         let showHideItem = NativeMenuItem(Header = "Show/Hide Window")
         showHideItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
+
+        let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
+        openLogsMenu.Click.Add(openLogsDir)
 
         let toggleDebug =
             NativeMenuItem(Header = "Verbose Logging", ToggleType = NativeMenuItemToggleType.CheckBox)
@@ -177,6 +188,8 @@ type App(levelSwitch: LoggingLevelSwitch) =
 
         let menu = NativeMenu()
         menu.Items.Add(showHideItem)
+        menu.Items.Add(NativeMenuItemSeparator())
+        menu.Items.Add(openLogsMenu)
         menu.Items.Add(toggleDebug) // Add it to your menu
         menu.Items.Add(NativeMenuItemSeparator())
         menu.Items.Add(quitItem)
