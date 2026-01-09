@@ -4,6 +4,7 @@ open System
 open System.Net.WebSockets
 open System.Text
 open System.Threading
+open GlazeWM.Tray.Literals
 open Serilog
 
 
@@ -109,8 +110,8 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
 
     /// Subscribe to GlazeWM events
     member _.InitializeSubscription() =
-        [ "sub -e workspace_updated workspace_activated workspace_deactivated binding_modes_changed pause_changed focus_changed"
-          "query workspaces" ]
+        [ $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}"
+          QWorkspaces ]
         |> List.map (SendMessage >> agent.Post)
         |> ignore
 
