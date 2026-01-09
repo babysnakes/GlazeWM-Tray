@@ -107,6 +107,13 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
 
     member _.Agent = agent
 
+    /// Subscribe to GlazeWM events
+    member _.InitializeSubscription() =
+        [ "sub -e workspace_updated workspace_activated workspace_deactivated binding_modes_changed pause_changed focus_changed"
+          "query workspaces" ]
+        |> List.map (SendMessage >> agent.Post)
+        |> ignore
+
     [<CLIEvent>]
     member this.Error = errorEvent.Publish
 

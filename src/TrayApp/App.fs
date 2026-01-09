@@ -151,11 +151,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         // TODO: Improve handling
         client.Error.Add(fun msg -> Log.Error("Error occurred in websocket client: {Message}", msg))
         parser'.Error.Add(fun msg -> Log.Error("Error occurred in message parser: {Message}", msg))
-
-        [ "sub -e workspace_updated workspace_activated workspace_deactivated binding_modes_changed pause_changed focus_changed"
-          "query workspaces" ]
-        |> List.map (SendMessage >> client.Agent.Post)
-        |> ignore
+        client.InitializeSubscription()
 
     let openLogsDir _ =
         let startInfo = System.Diagnostics.ProcessStartInfo(logDir)

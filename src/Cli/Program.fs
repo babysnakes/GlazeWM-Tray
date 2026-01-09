@@ -35,11 +35,7 @@ let parser = Parser(demoHandler)
 let client = new WebSocketClient(uri, parser.Dispatcher())
 parser.SetWsClient client.Agent
 let mutable failureOccured = false
-
-client.Agent.Post(
-    SendMessage
-        "sub -e workspace_updated workspace_activated workspace_deactivated binding_modes_changed pause_changed focus_changed"
-)
+client.InitializeSubscription()
 
 // IMPORTANT: listen to error events
 client.Error.Add(fun msg ->
