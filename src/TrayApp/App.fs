@@ -12,6 +12,7 @@ open Avalonia.Layout
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.Models
 open GlazeWM.Tray.WebSocketClient
+open GlazeWM.TrayApp.Helpers.Notifications
 open Serilog
 open Serilog.Core
 
@@ -110,8 +111,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                                     | Paused p -> { state with Paused = p }
                                     | NewBindingModes cb -> { state with CustomBinding = cb }
                                     | UnSuccessfulResponse msg ->
-                                        // TODO: Do something more meaningful
-                                        Log.Warning("Unsuccessful response: {Msg}", msg)
+                                        sendNotification "Unsuccessful Response from GlazeWM" $"{msg}"
                                         state
 
                                 if st <> state then
