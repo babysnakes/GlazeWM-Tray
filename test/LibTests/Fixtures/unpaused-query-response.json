@@ -1,0 +1,7 @@
+﻿{
+  "messageType": "client_response",
+  "clientMessage": "query paused",
+  "data": false,
+  "error": null,
+  "success": true
+}

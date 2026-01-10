@@ -4,6 +4,12 @@
 let QWorkspaces = "query workspaces"
 
 [<Literal>]
+let QPaused = "query paused"
+
+[<Literal>]
+let QBinding = "query binding-modes"
+
+[<Literal>]
 let SFocusCH = "focus_changed"
 
 [<Literal>]

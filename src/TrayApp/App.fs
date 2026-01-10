@@ -183,12 +183,16 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             | :? IClassicDesktopStyleApplicationLifetime as dl -> dl.Shutdown(0)
             | _ -> ())
 
+        let refreshItem = NativeMenuItem(Header = "Refresh")
+        refreshItem.Click.Add(fun _ -> wsClient |> Option.iter (fun c -> c.RefreshState()))
+
         let menu = NativeMenu()
         menu.Items.Add(showHideItem)
         menu.Items.Add(NativeMenuItemSeparator())
         menu.Items.Add(openLogsMenu)
         menu.Items.Add(toggleDebug) // Add it to your menu
         menu.Items.Add(NativeMenuItemSeparator())
+        menu.Items.Add(refreshItem)
         menu.Items.Add(quitItem)
         menu
 

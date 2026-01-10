@@ -174,7 +174,9 @@ module ``Pause status`` =
     type TestInput = { File: string; Expected: bool }
 
     let input =
-        [ { File = "paused.json"
+        [ { File = "unpaused-query-response.json"
+            Expected = false }
+          { File = "paused.json"
             Expected = true }
           { File = "unpaused.json"
             Expected = false } ]
@@ -201,7 +203,11 @@ module ``Binding Modes`` =
     type TestInput = { File: string; Expected: bool }
 
     let input =
-        [ { File = "binding-modes-new.json"
+        [ { File = "binding-modes-default-query-response.json"
+            Expected = false }
+          { File = "binding-modes-custom-query-response.json"
+            Expected = true }
+          { File = "binding-modes-new.json"
             Expected = true }
           { File = "binding-modes-default.json"
             Expected = false } ]
@@ -261,6 +267,8 @@ module ``Actor Resilience Test`` =
             ErrorMessage = "UnsetWsClient" }
           { File = "binding-modes-invalid.json"
             ErrorMessage = "Missing field for record type" }
+          { File = "error-paused-query-response.json"
+            ErrorMessage = "Expected Bool, but got String" }
           { File = "invalid-paused-event.json"
             ErrorMessage = "Missing field for record type" } ]
 

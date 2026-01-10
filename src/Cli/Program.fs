@@ -58,6 +58,9 @@ let rec ReadAndSendLoop () =
     | "info" ->
         levelSwitch.MinimumLevel <- LogEventLevel.Information
         ReadAndSendLoop()
+    | "refresh" ->
+        client.RefreshState()
+        ReadAndSendLoop()
     | _ ->
         client.Agent.Post(SendMessage input)
         ReadAndSendLoop()

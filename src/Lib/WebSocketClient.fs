@@ -115,6 +115,12 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
         |> List.map (SendMessage >> agent.Post)
         |> ignore
 
+    /// Run queries that trigger responses for each aspect of the current state (workspace, pause, binding).
+    member _.RefreshState() =
+        [ QWorkspaces; QBinding; QPaused ]
+        |> List.map (SendMessage >> agent.Post)
+        |> ignore
+
     [<CLIEvent>]
     member this.Error = errorEvent.Publish
 

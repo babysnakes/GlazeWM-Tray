@@ -23,6 +23,8 @@ type private JsonType =
     | PausedChanged of JsonElement
     | BindingModesChanged of JsonElement
     | QueryWorkspaces of JsonElement
+    | QueryPaused of string
+    | QueryBindingModes of JsonElement
     | Unhandled of string
     | WorkspaceStar
 
@@ -85,6 +87,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     let tryQueryResponse (json: string) =
         parser {
+            // Assuming this is called after `trySubscriptionEvent`, it must be of the type 'client_response'
             let! clientMessage = "clientMessage" ?= Parse.string
             return clientMessage |> Option.map QueryResponseType
         }
@@ -124,6 +127,17 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
         |> Result.toOption
         |> Option.flatten
 
+    let handleQueryPausedResponse (json: string) =
+        parser {
+            let! paused = "data" &= Parse.bool
+            return paused |> Paused |> handler.Post
+        }
+        |> Parser.parse json
+        |> Result.teeError (fun e ->
+            Log.Error("Error parsing query paused response: {Ex}", e)
+            errorEvent.Trigger(ParseError e))
+        |> ignore
+
     let messageParser =
         let agent =
             MailboxProcessor<JsonType>.Start(fun inbox ->
@@ -149,6 +163,14 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 match handleWorkspacesResponse parsed with
                                 | Some _ -> return! loop (Some parsed)
                                 | None -> ()
+                            | QueryPaused m ->
+                                Log.Debug("messageParser received query paused: {Message}", m)
+                                handleQueryPausedResponse m
+                            | QueryBindingModes m ->
+                                Log.Debug("messageParser received query binding modes: {Message}", m)
+                                let parsed = JsonSerializer.Deserialize<BindingModesQueryResponse>(m, options)
+                                let nb = (parsed.Data.BindingModes |> List.isEmpty |> not)
+                                handler.Post(NewBindingModes nb)
                             | PausedChanged m ->
                                 Log.Debug("messageParser received pause changed: {Message}", m)
                                 let parsed = JsonSerializer.Deserialize<PauseChangedEvent>(m, options)
@@ -202,6 +224,8 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 | Ok(Some(SubscriptionResponseType SWorkspaceDeACT))
                                 | Ok(Some(SubscriptionResponseType SWorkspaceACT)) -> messageParser.Post(WorkspaceStar)
                                 | Ok(Some(QueryResponseType QWorkspaces)) -> messageParser.Post(QueryWorkspaces root)
+                                | Ok(Some(QueryResponseType QPaused)) -> messageParser.Post(QueryPaused msg)
+                                | Ok(Some(QueryResponseType QBinding)) -> messageParser.Post(QueryBindingModes root)
                                 | Ok _ -> messageParser.Post(Unhandled msg)
                                 | Error e ->
                                     Log.Error("Error parsing message: {Ex}", e)
