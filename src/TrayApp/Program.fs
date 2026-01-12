@@ -33,4 +33,9 @@ module Program =
 
     [<EntryPoint>]
     let main (args: string[]) =
-        AppBuilder.Configure<App>(fun _ -> mkApp ()).UsePlatformDetect().UseSkia().StartWithClassicDesktopLifetime(args)
+        AppBuilder
+            .Configure<App>(fun _ -> mkApp ())
+            .LogToTrace()
+            .UsePlatformDetect()
+            .UseSkia()
+            .StartWithClassicDesktopLifetime(args)

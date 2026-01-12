@@ -26,3 +26,6 @@ let SWorkspaceACT = "workspace_activated"
 
 [<Literal>]
 let SWorkspaceDeACT = "workspace_deactivated"
+
+[<Literal>]
+let BugUrl = "https://github.com/babysnakes/GlazeWM-Tray/issues"

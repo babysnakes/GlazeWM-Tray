@@ -64,11 +64,16 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
     let mutable workspaceIcons: Map<string, WindowIcon> = Map.empty
     let uri = Uri("ws://localhost:6123/")
+    let reconnectMenuItem = NativeMenuItem(Header = "Reconnect to GlazeWM")
 
     // Hold references at the class level so they aren't GC'd
     let mutable parser: Parser option = None
     let mutable wsClient: WebSocketClient option = None
     let mutable messageHandler: MailboxProcessor<ParsingOutput> option = None
+
+    /// Enable/Disable the `reconnectMenuItem`
+    let setReconnectMenuEnabled (state: bool) =
+        Avalonia.Threading.Dispatcher.UIThread.Post(fun () -> reconnectMenuItem.IsEnabled <- state)
 
     /// logic for matching state to icon
     let matchStateToIcon (state: TrayIconState) =
@@ -139,6 +144,30 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         wsClient |> Option.iter (fun c -> (c :> IDisposable).Dispose())
         tray.IsVisible <- false
 
+    /// Resets both the `parser` and `wsClient` references and prints an error message to the user.
+    let handleCommunicationError (msg: string) =
+        let text =
+            $"A fata error occured regarding communication with GlazeWM ({msg}). Check the logs for more details.\
+              To renew communication with GlazeWM, please select 'Reinitialize GlazeWM Connection' from the tray menu."
+
+        setReconnectMenuEnabled true
+        showErrorMessage "GlazeWM Communication Error" text |> ignore
+        parser <- None
+        wsClient <- None
+
+    let handleMessageParserEvent (msg: MessageParserEvent) =
+        match msg with
+        | ParseError s -> Log.Error("A parser exception had occured: {Err}", s)
+        | NoCurrentWorkspace -> sendBugNotification NoCurrentWorkspace
+        | UnsetWsClient -> sendBugNotification UnsetWsClient
+        | AgentError ex ->
+            Log.Error(ex, "MessageParser agent error:")
+            handleCommunicationError $"MessageParser: {ex.Message}"
+
+    let handleWsClientEvent (msg: string) =
+        Log.Error("A websocket client exception had occured: {Err}", msg)
+        handleCommunicationError msg
+
     let initGlazeConnection (ti: TrayIcon) =
         let agent = trayUpdater ti
         let parser' = Parser(agent)
@@ -147,10 +176,11 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         parser <- Some parser'
         wsClient <- Some client
         messageHandler <- Some agent
+        // If we're connected, we can disable the reconnection menu item
+        setReconnectMenuEnabled false
 
-        // TODO: Improve handling
-        client.Error.Add(fun msg -> Log.Error("Error occurred in websocket client: {Message}", msg))
-        parser'.Error.Add(fun msg -> Log.Error("Error occurred in message parser: {Message}", msg))
+        client.Error.Add(handleWsClientEvent)
+        parser'.Error.Add(handleMessageParserEvent)
         client.InitializeSubscription()
 
     let openLogsDir _ =
@@ -158,7 +188,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         startInfo.UseShellExecute <- true
         System.Diagnostics.Process.Start(startInfo) |> ignore
 
-    member private this.MkMenu(desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
+    member private this.MkMenu(desktopLifetime: IClassicDesktopStyleApplicationLifetime, tray: TrayIcon) =
         let showHideItem = NativeMenuItem(Header = "Show/Hide Window")
         showHideItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
 
@@ -183,6 +213,10 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             | :? IClassicDesktopStyleApplicationLifetime as dl -> dl.Shutdown(0)
             | _ -> ())
 
+        reconnectMenuItem.Click.Add(fun _ ->
+            sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
+            initGlazeConnection tray)
+
         let refreshItem = NativeMenuItem(Header = "Refresh")
         refreshItem.Click.Add(fun _ -> wsClient |> Option.iter (fun c -> c.RefreshState()))
 
@@ -192,6 +226,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         menu.Items.Add(openLogsMenu)
         menu.Items.Add(toggleDebug) // Add it to your menu
         menu.Items.Add(NativeMenuItemSeparator())
+        menu.Items.Add(reconnectMenuItem)
         menu.Items.Add(refreshItem)
         menu.Items.Add(quitItem)
         menu
@@ -208,8 +243,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             desktopLifetime.ShutdownMode <- ShutdownMode.OnExplicitShutdown
             Log.Information("Application started")
 
-            let menu = this.MkMenu desktopLifetime
             let tray = new TrayIcon()
+            let menu = this.MkMenu(desktopLifetime, tray)
             tray.ToolTipText <- "Workspace ?"
             tray.Menu <- menu
             tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime)
