@@ -252,8 +252,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             tray.ToolTipText <- "Workspace ?"
             tray.Menu <- menu
             tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime)
-            // TODO: replace with default app icon
-            let app_icon = WindowIcon(System.IO.Path.Combine("Assets", "icon-qm-w.ico"))
+            let app_icon = WindowIcon(System.IO.Path.Combine("Assets", "icon.ico"))
             tray.Icon <- app_icon
             let icons = TrayIcons()
             icons.Add(tray)
