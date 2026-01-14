@@ -3,6 +3,7 @@
 open System
 open Avalonia
 open Avalonia.Controls.ApplicationLifetimes
+open Avalonia.Styling
 open Avalonia.Themes.Fluent
 open Avalonia.FuncUI.Hosts
 open Avalonia.Controls
@@ -62,6 +63,8 @@ module Assets =
 type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
     inherit Application()
 
+    let tray = new TrayIcon()
+    let mutable variant: ThemeVariant = ThemeVariant.Default // we'll set it right in initialize...
     let mutable workspaceIcons: Map<string, WindowIcon> = Map.empty
     let uri = Uri("ws://localhost:6123/")
     let reconnectMenuItem = NativeMenuItem(Header = "Reconnect to GlazeWM")
@@ -77,7 +80,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
     /// logic for matching state to icon
     let matchStateToIcon (state: TrayIconState) =
-        let theme = if (state.Paused || state.CustomBinding) then "g" else "w"
+        let bw = if variant = ThemeVariant.Dark then "w" else "b"
+        let theme = if (state.Paused || state.CustomBinding) then "g" else bw
         let name = if state.CustomBinding then "qm" else state.Workspace.Name
         let key = $"icon-{name}-{theme}"
 
@@ -101,9 +105,9 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             w.Activate()
         | w -> w.Hide()
 
-    let trayUpdater (tray: TrayIcon) =
+    let trayUpdater () =
         MailboxProcessor<ParsingOutput>.Start(fun inbox ->
-            let rec loop (state: TrayIconState) =
+            let rec loop (state: TrayIconState) (iVariant: ThemeVariant) =
                 async {
                     let! msg = inbox.Receive()
 
@@ -119,7 +123,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                                         sendNotification "Unsuccessful Response from GlazeWM" $"{msg}"
                                         state
 
-                                if st <> state then
+                                if st <> state || iVariant <> variant then
                                     tray.Icon <- matchStateToIcon st
                                     tray.ToolTipText <- $"Workspace {st.Workspace.Name}"
 
@@ -127,7 +131,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                             .GetTask()
                          |> Async.AwaitTask)
 
-                    return! loop newState
+                    return! loop newState variant
                 }
 
             let defaultState =
@@ -137,7 +141,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                   Paused = false
                   CustomBinding = false }
 
-            loop defaultState)
+            loop defaultState variant)
 
     let cleanup (tray: TrayIcon) =
         Log.Information("Shutting down...")
@@ -151,7 +155,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
               To renew communication with GlazeWM, please select 'Reinitialize GlazeWM Connection' from the tray menu."
 
         setReconnectMenuEnabled true
-        showErrorMessage "GlazeWM Communication Error" text |> ignore
+        showErrorMessage "GlazeWM Communication Error" text
         parser <- None
         wsClient <- None
 
@@ -168,8 +172,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         Log.Error("A websocket client exception had occured: {Err}", msg)
         handleCommunicationError msg
 
-    let initGlazeConnection (ti: TrayIcon) =
-        let agent = trayUpdater ti
+    let initGlazeConnection () =
+        let agent = trayUpdater ()
         let parser' = Parser(agent)
         let client = new WebSocketClient(uri, parser'.Dispatcher())
         parser'.SetWsClient client.Agent
@@ -188,7 +192,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         startInfo.UseShellExecute <- true
         System.Diagnostics.Process.Start(startInfo) |> ignore
 
-    member private this.MkMenu(desktopLifetime: IClassicDesktopStyleApplicationLifetime, tray: TrayIcon) =
+    member private this.MkMenu(desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
         let showHideItem = NativeMenuItem(Header = "Show/Hide Window")
         showHideItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
 
@@ -215,7 +219,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
         reconnectMenuItem.Click.Add(fun _ ->
             sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
-            initGlazeConnection tray)
+            initGlazeConnection ())
 
         let refreshItem = NativeMenuItem(Header = "Refresh")
         refreshItem.Click.Add(fun _ -> wsClient |> Option.iter (fun c -> c.RefreshState()))
@@ -233,7 +237,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
     override this.Initialize() =
         this.Styles.Add(FluentTheme())
-        this.RequestedThemeVariant <- Styling.ThemeVariant.Dark
+        variant <- this.ActualThemeVariant
         workspaceIcons <- Assets.loadIcons ()
 
     override this.OnFrameworkInitializationCompleted() =
@@ -243,8 +247,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             desktopLifetime.ShutdownMode <- ShutdownMode.OnExplicitShutdown
             Log.Information("Application started")
 
-            let tray = new TrayIcon()
-            let menu = this.MkMenu(desktopLifetime, tray)
+            let menu = this.MkMenu desktopLifetime
             tray.ToolTipText <- "Workspace ?"
             tray.Menu <- menu
             tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime)
@@ -254,7 +257,14 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             let icons = TrayIcons()
             icons.Add(tray)
             TrayIcon.SetIcons(this, icons)
-            initGlazeConnection tray
+            initGlazeConnection ()
+
+            this.ActualThemeVariantChanged.Add(fun _ ->
+                Log.Debug("Theme variant changed, new variant is {Variant}", variant)
+                variant <- this.ActualThemeVariant
+                // trigger recalculation of the icon
+                wsClient |> Option.iter (fun c -> c.RefreshState()))
+
             desktopLifetime.Exit.Add(fun _ -> cleanup tray)
 
             tray.IsVisible <- true
