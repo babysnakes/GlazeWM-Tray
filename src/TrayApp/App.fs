@@ -13,6 +13,7 @@ open Avalonia.Layout
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.Models
 open GlazeWM.Tray.WebSocketClient
+open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
 open Serilog
 open Serilog.Core
@@ -222,7 +223,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             initGlazeConnection ())
 
         let refreshItem = NativeMenuItem(Header = "Refresh")
-        refreshItem.Click.Add(fun _ -> wsClient |> Option.iter (fun c -> c.RefreshState()))
+        refreshItem.Click.Add(fun _ -> wsClient |> Option.tryDo (fun c -> c.RefreshState()))
 
         let menu = NativeMenu()
         menu.Items.Add(showHideItem)
@@ -263,7 +264,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                 Log.Debug("Theme variant changed, new variant is {Variant}", variant)
                 variant <- this.ActualThemeVariant
                 // trigger recalculation of the icon
-                wsClient |> Option.iter (fun c -> c.RefreshState()))
+                wsClient |> Option.tryDo (fun c -> c.RefreshState()))
 
             desktopLifetime.Exit.Add(fun _ -> cleanup tray)
 
