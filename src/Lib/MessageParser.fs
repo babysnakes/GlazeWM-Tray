@@ -95,6 +95,11 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     /// Check for the current workspace and notifies the handler if found. Returns optional current workspace.
     let handleWorkspacesResponse (wr: WorkspacesResponse) =
+        wr.Data.Workspaces
+        |> List.map extractWorkspaceName
+        |> ActiveWorkspaces
+        |> handler.Post
+
         match wr |> extractCurrentWorkspace with
         | Some current ->
             current |> extractWorkspaceName |> CurrentWorkspace |> handler.Post

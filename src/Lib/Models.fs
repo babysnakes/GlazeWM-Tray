@@ -42,6 +42,7 @@ type BindingModesChangedEvent = { Data: BindingModesChangedEventData }
 
 type ParsingOutput =
     | CurrentWorkspace of WorkspaceName
+    | ActiveWorkspaces of WorkspaceName list
     | Paused of bool
     | NewBindingModes of bool
     | UnSuccessfulResponse of string
@@ -60,7 +61,7 @@ module WorkspaceResponse =
 
         let dn =
             workspace.DisplayName
-            |> Option.bind (fun d -> if d.Length > 1 then Some d else None)
+            |> Option.bind (fun d -> if d.Length > 0 then Some d else None)
             |> Option.defaultValue workspace.Name
 
         { Name = name.ToLower()
