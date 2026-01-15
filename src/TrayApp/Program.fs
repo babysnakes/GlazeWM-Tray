@@ -1,12 +1,12 @@
-﻿namespace CounterApp
+﻿namespace GlazeWM.TrayAPP.Main
 
 open System
 open System.IO
 open Avalonia
-open GlazeWM.TrayApp.Application
 open Serilog
 open Serilog.Core
 open Serilog.Events
+open GlazeWM.TrayApp.Application
 
 module Program =
 

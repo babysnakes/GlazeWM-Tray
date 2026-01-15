@@ -2,8 +2,8 @@
 
 open System
 open FsUnit
-open GlazeWM.Tray.Models
 open NUnit.Framework
+open GlazeWM.Tray.Models
 
 module ``extractWorkspaceName tests`` =
 

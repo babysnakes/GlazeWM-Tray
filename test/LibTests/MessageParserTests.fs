@@ -1,12 +1,12 @@
 ﻿module LibTests.MessageParserTests
 
 open FsUnit
+open LibTests.CommonHelpers
+open NUnit.Framework
 open GlazeWM.Tray.Literals
 open GlazeWM.Tray.MessageParser
-open GlazeWM.Tray.WebSocketClient
-open LibTests.CommonHelpers
 open GlazeWM.Tray.Models
-open NUnit.Framework
+open GlazeWM.Tray.WebSocketClient
 
 module ``workspace response parsing tests`` =
 

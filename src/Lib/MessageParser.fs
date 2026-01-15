@@ -3,14 +3,14 @@
 open System
 open System.Text.Json
 open System.Text.Json.Serialization
-open GlazeWM.Tray.Literals
-open GlazeWM.Tray.Models
-open FsToolkit.ErrorHandling
-open GlazeWM.Tray.Models.WorkspaceResponse
-open GlazeWM.Tray.WebSocketClient
-open Serilog
 open Farse
 open Farse.Operators
+open FsToolkit.ErrorHandling
+open Serilog
+open GlazeWM.Tray.Literals
+open GlazeWM.Tray.Models
+open GlazeWM.Tray.Models.WorkspaceResponse
+open GlazeWM.Tray.WebSocketClient
 
 type MessageParserEvent =
     | ParseError of string

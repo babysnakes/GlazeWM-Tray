@@ -2,22 +2,22 @@
 
 open System
 open Avalonia
-open Avalonia.Controls.ApplicationLifetimes
-open Avalonia.Styling
-open Avalonia.Themes.Fluent
-open Avalonia.FuncUI.Hosts
 open Avalonia.Controls
+open Avalonia.Controls.ApplicationLifetimes
+open Avalonia.FuncUI.Hosts
 open Avalonia.FuncUI
 open Avalonia.FuncUI.DSL
 open Avalonia.Layout
+open Avalonia.Styling
+open Avalonia.Themes.Fluent
+open Serilog
+open Serilog.Core
 open GlazeWM.Tray.Literals
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.Models
 open GlazeWM.Tray.WebSocketClient
 open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
-open Serilog
-open Serilog.Core
 
 module Main =
 
@@ -72,7 +72,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
     let mutable reconnectMenuItem = NativeMenuItem()
     let uri = Uri("ws://localhost:6123/")
 
-    // Hold references at the class level so they aren't GC'd
+    // Hold references at the class level so they aren't garbage collected
     let mutable parser: Parser option = None
     let mutable wsClient: WebSocketClient option = None
     let mutable messageHandler: MailboxProcessor<ParsingOutput> option = None

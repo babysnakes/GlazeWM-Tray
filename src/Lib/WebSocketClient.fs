@@ -4,8 +4,8 @@ open System
 open System.Net.WebSockets
 open System.Text
 open System.Threading
-open GlazeWM.Tray.Literals
 open Serilog
+open GlazeWM.Tray.Literals
 
 
 type WebSocketMessage =

@@ -1,11 +1,11 @@
 ﻿// For more information see https://aka.ms/fsharp-console-apps
 open System
-open GlazeWM.Tray.MessageParser
-open GlazeWM.Tray.Models
-open GlazeWM.Tray.WebSocketClient
 open Serilog
 open Serilog.Core
 open Serilog.Events
+open GlazeWM.Tray.MessageParser
+open GlazeWM.Tray.Models
+open GlazeWM.Tray.WebSocketClient
 
 let levelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
 Log.Logger <- LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).WriteTo.Console().CreateLogger()

@@ -2,9 +2,9 @@
 
 open System
 open System.Runtime.InteropServices
-open GlazeWM.Tray.Literals
 open Microsoft.Toolkit.Uwp.Notifications
 open Serilog
+open GlazeWM.Tray.Literals
 
 [<RequireQualifiedAccess>]
 module Option =

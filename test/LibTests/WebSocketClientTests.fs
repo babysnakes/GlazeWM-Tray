@@ -1,14 +1,14 @@
 ﻿module LibTests.WebSocketClientTests
 
+open System
 open System.Net
 open System.Net.Sockets
 open System.Threading
 open Fleck
-open LibTests.CommonHelpers
-open GlazeWM.Tray.WebSocketClient
-open System
-open NUnit.Framework
 open FsUnit
+open LibTests.CommonHelpers
+open NUnit.Framework
+open GlazeWM.Tray.WebSocketClient
 
 let getFreePort () =
     let listener = new TcpListener(IPAddress.Loopback, 0)
