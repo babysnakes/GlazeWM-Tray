@@ -29,3 +29,6 @@ let SWorkspaceDeACT = "workspace_deactivated"
 
 [<Literal>]
 let BugUrl = "https://github.com/babysnakes/GlazeWM-Tray/issues"
+
+[<Literal>]
+let CFocusWorkspacePrefix = "command focus --workspace "

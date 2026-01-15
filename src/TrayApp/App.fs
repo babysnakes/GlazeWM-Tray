@@ -10,6 +10,7 @@ open Avalonia.Controls
 open Avalonia.FuncUI
 open Avalonia.FuncUI.DSL
 open Avalonia.Layout
+open GlazeWM.Tray.Literals
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.Models
 open GlazeWM.Tray.WebSocketClient
@@ -199,7 +200,11 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                     m.DisplayName
 
             let item = NativeMenuItem(Header = $"{m.Name} - {dn}")
-            item.Click.Add(fun _ -> Log.Information("Switching to workspace {Name}", m.Name))
+
+            item.Click.Add(fun _ ->
+                wsClient
+                |> Option.tryDo (fun c -> $"{CFocusWorkspacePrefix} {m.Name}" |> SendMessage |> c.Agent.Post))
+
             menu.Items.Add(item))
 
         menu.Items.Add(NativeMenuItemSeparator())
