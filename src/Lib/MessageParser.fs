@@ -3,6 +3,7 @@
 open System
 open System.Text.Json
 open System.Text.Json.Serialization
+open GlazeWM.Tray.Literals
 open GlazeWM.Tray.Models
 open FsToolkit.ErrorHandling
 open GlazeWM.Tray.Models.WorkspaceResponse
@@ -22,6 +23,8 @@ type private JsonType =
     | PausedChanged of JsonElement
     | BindingModesChanged of JsonElement
     | QueryWorkspaces of JsonElement
+    | QueryPaused of string
+    | QueryBindingModes of JsonElement
     | Unhandled of string
     | WorkspaceStar
 
@@ -33,8 +36,6 @@ type private MessageType =
 type private MessageTypeResult = Result<MessageType option, string>
 
 type Parser(handler: MailboxProcessor<ParsingOutput>) =
-
-    let queryWorkspacesPhrase = "query workspaces"
 
     let errorEvent = Event<MessageParserEvent>()
     let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
@@ -86,6 +87,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     let tryQueryResponse (json: string) =
         parser {
+            // Assuming this is called after `trySubscriptionEvent`, it must be of the type 'client_response'
             let! clientMessage = "clientMessage" ?= Parse.string
             return clientMessage |> Option.map QueryResponseType
         }
@@ -125,6 +127,17 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
         |> Result.toOption
         |> Option.flatten
 
+    let handleQueryPausedResponse (json: string) =
+        parser {
+            let! paused = "data" &= Parse.bool
+            return paused |> Paused |> handler.Post
+        }
+        |> Parser.parse json
+        |> Result.teeError (fun e ->
+            Log.Error("Error parsing query paused response: {Ex}", e)
+            errorEvent.Trigger(ParseError e))
+        |> ignore
+
     let messageParser =
         let agent =
             MailboxProcessor<JsonType>.Start(fun inbox ->
@@ -142,7 +155,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
                                 state
                                 |> Option.bind (handleFocusChangedEvent m)
-                                |> Option.defaultWith (fun () -> sendWebSocketMessage queryWorkspacesPhrase)
+                                |> Option.defaultWith (fun () -> sendWebSocketMessage QWorkspaces)
                             | QueryWorkspaces m ->
                                 Log.Debug("messageParser received query workspaces: {Message}", m)
                                 let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
@@ -150,6 +163,14 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 match handleWorkspacesResponse parsed with
                                 | Some _ -> return! loop (Some parsed)
                                 | None -> ()
+                            | QueryPaused m ->
+                                Log.Debug("messageParser received query paused: {Message}", m)
+                                handleQueryPausedResponse m
+                            | QueryBindingModes m ->
+                                Log.Debug("messageParser received query binding modes: {Message}", m)
+                                let parsed = JsonSerializer.Deserialize<BindingModesQueryResponse>(m, options)
+                                let nb = (parsed.Data.BindingModes |> List.isEmpty |> not)
+                                handler.Post(NewBindingModes nb)
                             | PausedChanged m ->
                                 Log.Debug("messageParser received pause changed: {Message}", m)
                                 let parsed = JsonSerializer.Deserialize<PauseChangedEvent>(m, options)
@@ -159,7 +180,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 let parsed = JsonSerializer.Deserialize<BindingModesChangedEvent>(m, options)
                                 let nb = (parsed.Data.NewBindingModes |> List.isEmpty |> not)
                                 handler.Post(NewBindingModes nb)
-                            | WorkspaceStar -> sendWebSocketMessage queryWorkspacesPhrase
+                            | WorkspaceStar -> sendWebSocketMessage QWorkspaces
                             | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
                         with
                         | :? OperationCanceledException as ex ->
@@ -195,18 +216,16 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                             |> mergeMatcher msg tryQueryResponse
                             |> function
                                 | Ok(Some(UnSuccessfulResponseType msg)) -> handler.Post(UnSuccessfulResponse msg)
-                                | Ok(Some(SubscriptionResponseType "focus_changed")) ->
-                                    messageParser.Post(FocusChanged msg)
-                                | Ok(Some(SubscriptionResponseType "binding_modes_changed")) ->
+                                | Ok(Some(SubscriptionResponseType SFocusCH)) -> messageParser.Post(FocusChanged msg)
+                                | Ok(Some(SubscriptionResponseType SBindingModesCH)) ->
                                     messageParser.Post(BindingModesChanged root)
-                                | Ok(Some(SubscriptionResponseType "pause_changed")) ->
-                                    messageParser.Post(PausedChanged root)
-                                | Ok(Some(SubscriptionResponseType "workspace_updated"))
-                                | Ok(Some(SubscriptionResponseType "workspace_deactivated"))
-                                | Ok(Some(SubscriptionResponseType "workspace_activated")) ->
-                                    messageParser.Post(WorkspaceStar)
-                                | Ok(Some(QueryResponseType "query workspaces")) ->
-                                    messageParser.Post(QueryWorkspaces root)
+                                | Ok(Some(SubscriptionResponseType SPauseCH)) -> messageParser.Post(PausedChanged root)
+                                | Ok(Some(SubscriptionResponseType SWorkspaceUP))
+                                | Ok(Some(SubscriptionResponseType SWorkspaceDeACT))
+                                | Ok(Some(SubscriptionResponseType SWorkspaceACT)) -> messageParser.Post(WorkspaceStar)
+                                | Ok(Some(QueryResponseType QWorkspaces)) -> messageParser.Post(QueryWorkspaces root)
+                                | Ok(Some(QueryResponseType QPaused)) -> messageParser.Post(QueryPaused msg)
+                                | Ok(Some(QueryResponseType QBinding)) -> messageParser.Post(QueryBindingModes root)
                                 | Ok _ -> messageParser.Post(Unhandled msg)
                                 | Error e ->
                                     Log.Error("Error parsing message: {Ex}", e)

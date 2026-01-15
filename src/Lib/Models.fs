@@ -32,6 +32,10 @@ type PauseChangedEvent = { Data: PauseChangedEventData }
 
 type BindingMode = { Name: string }
 
+type BindingModeQueryData = { BindingModes: BindingMode list }
+
+type BindingModesQueryResponse = { Data: BindingModeQueryData }
+
 type BindingModesChangedEventData = { NewBindingModes: BindingMode list }
 
 type BindingModesChangedEvent = { Data: BindingModesChangedEventData }

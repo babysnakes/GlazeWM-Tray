@@ -6,8 +6,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Models.fs" />
+    <Compile Include="Literals.fs" />
     <Compile Include="WebSocketClient.fs" />
     <Compile Include="MessageParser.fs" />
   </ItemGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
+  <ItemGroup>
+    <PackageReference Include="FSharp.SystemTextJson" />
+    <PackageReference Include="FsToolkit.ErrorHandling" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Farse" />
+  </ItemGroup>
 </Project>

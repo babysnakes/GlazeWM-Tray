@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType Condition="'$(Configuration)' == 'Debug'">Exe</OutputType>
+    <OutputType Condition="'$(Configuration)' != 'Debug'">WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <AssemblyName>GlazeWM-Tray</AssemblyName>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+ 
+  <ItemGroup>
+    <Compile Include="Helpers.fs" />
+    <Compile Include="App.fs" />
+    <Compile Include="Program.fs" />
+    <Content Include="Assets\*.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lib\Lib.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.FuncUI" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" />
+    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+</Project>

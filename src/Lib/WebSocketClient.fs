@@ -4,6 +4,7 @@ open System
 open System.Net.WebSockets
 open System.Text
 open System.Threading
+open GlazeWM.Tray.Literals
 open Serilog
 
 
@@ -106,6 +107,19 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
         a
 
     member _.Agent = agent
+
+    /// Subscribe to GlazeWM events
+    member _.InitializeSubscription() =
+        [ $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}"
+          QWorkspaces ]
+        |> List.map (SendMessage >> agent.Post)
+        |> ignore
+
+    /// Run queries that trigger responses for each aspect of the current state (workspace, pause, binding).
+    member _.RefreshState() =
+        [ QWorkspaces; QBinding; QPaused ]
+        |> List.map (SendMessage >> agent.Post)
+        |> ignore
 
     [<CLIEvent>]
     member this.Error = errorEvent.Publish

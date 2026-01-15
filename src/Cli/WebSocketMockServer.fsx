@@ -1,5 +1,6 @@
 #r "nuget: Fleck, 1.2.0"
 
+open System.IO
 open Fleck
 
 let mutable currentSocket: IWebSocketConnection option = None
@@ -19,6 +20,14 @@ server.Start(fun socket ->
     socket.OnMessage <- fun message -> printfn $">> Received: %s{message}")
 
 printfn "Server started on ws://0.0.0.0:8181"
+
+let readFixture fileName =
+    let relativePath =
+        Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "test", "LibTests", "Fixtures", fileName)
+
+    File.ReadAllText(relativePath)
+
+let sampleWorkspaces = readFixture "basic-workspaces-response.json"
 
 let send (msg: string) =
     match currentSocket with

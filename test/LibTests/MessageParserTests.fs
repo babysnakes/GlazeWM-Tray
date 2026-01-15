@@ -1,6 +1,7 @@
 ﻿module LibTests.MessageParserTests
 
 open FsUnit
+open GlazeWM.Tray.Literals
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.WebSocketClient
 open LibTests.CommonHelpers
@@ -81,7 +82,7 @@ module ``focus-changed-event workflow tests`` =
 
         let mockWsClient =
             mkDemoAgent (function
-                | SendMessage "query workspaces" -> tcs.SetResult(true)
+                | SendMessage QWorkspaces -> tcs.SetResult(true)
                 | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
 
         let parser = Parser(handler)
@@ -111,7 +112,7 @@ module ``focus-changed-event workflow tests`` =
             Assert.Fail("Timeout waiting for workspace query message")
 
         let result = tcs.Task.Result
-        result |> should equal (SendMessage "query workspaces")
+        result |> should equal (SendMessage QWorkspaces)
 
     [<Test>]
     let ``when emitted with other container then window, emits workspace query`` () =
@@ -173,7 +174,9 @@ module ``Pause status`` =
     type TestInput = { File: string; Expected: bool }
 
     let input =
-        [ { File = "paused.json"
+        [ { File = "unpaused-query-response.json"
+            Expected = false }
+          { File = "paused.json"
             Expected = true }
           { File = "unpaused.json"
             Expected = false } ]
@@ -200,7 +203,11 @@ module ``Binding Modes`` =
     type TestInput = { File: string; Expected: bool }
 
     let input =
-        [ { File = "binding-modes-new.json"
+        [ { File = "binding-modes-default-query-response.json"
+            Expected = false }
+          { File = "binding-modes-custom-query-response.json"
+            Expected = true }
+          { File = "binding-modes-new.json"
             Expected = true }
           { File = "binding-modes-default.json"
             Expected = false } ]
@@ -224,7 +231,7 @@ module ``Binding Modes`` =
         result |> should equal input.Expected
 
 module ``Workspace activated-deactivated-updated`` =
-    let event = [ "workspace_updated"; "workspace_activated"; "workspace_deactivated" ]
+    let event = [ SWorkspaceUP; SWorkspaceACT; SWorkspaceDeACT ]
 
     let mkMinimalJson (evt: string) =
         $"""{{"messageType":"event_subscription","data":{{"eventType":"{evt}"}},"error":null,"success":true}}"""
@@ -237,7 +244,7 @@ module ``Workspace activated-deactivated-updated`` =
 
         let mockWsClient =
             mkDemoAgent (function
-                | SendMessage "query workspaces" -> tcs.SetResult()
+                | SendMessage QWorkspaces -> tcs.SetResult()
                 | invalid -> TestContext.Progress.WriteLine($"unexpected message: {invalid}"))
 
         let parser = Parser(handler)
@@ -260,6 +267,8 @@ module ``Actor Resilience Test`` =
             ErrorMessage = "UnsetWsClient" }
           { File = "binding-modes-invalid.json"
             ErrorMessage = "Missing field for record type" }
+          { File = "error-paused-query-response.json"
+            ErrorMessage = "Expected Bool, but got String" }
           { File = "invalid-paused-event.json"
             ErrorMessage = "Missing field for record type" } ]
 

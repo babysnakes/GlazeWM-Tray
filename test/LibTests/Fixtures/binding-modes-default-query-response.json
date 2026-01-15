@@ -1,0 +1,9 @@
+﻿{
+  "messageType": "client_response",
+  "clientMessage": "query binding-modes",
+  "data": {
+    "bindingModes": []
+  },
+  "error": null,
+  "success": true
+}

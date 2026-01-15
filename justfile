@@ -22,9 +22,15 @@ check: check-format lint
 [doc('Restore from scratch honering the lock file')]
 restore:
 	dotnet tool restore
-	dotnet paket restore
+	dotnet restore
 
 [doc('Run CI checks and tests')]
 ci: restore check-format
 	dotnet build
 	dotnet test
+
+[working-directory: 'resources']
+[doc('Generate icons from PNG images (exported from Affinity)')]
+icons:
+	@powershell -c '.\gen-icons.ps1'
+	mv generated/*.ico ../src/TrayApp/Assets/

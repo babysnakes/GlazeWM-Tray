@@ -1,8 +1,6 @@
 name: Build and Test GlazeWM-Tray
 
 on:
-  push:
-    branches: ["main"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -27,4 +25,3 @@ jobs:
 
       - name: Run CI tasks
         run: just ci
-
