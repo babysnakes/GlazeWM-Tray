@@ -15,7 +15,7 @@ module ``workspace response parsing tests`` =
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
 
-        let handler: MailboxProcessor<ParsingOutput> =
+        let handler: MailboxProcessor<AppNotification> =
             mkDemoAgent (fun s ->
                 match s with
                 | Workspaces r -> tcs.SetResult(r)
@@ -58,7 +58,7 @@ module ``focus-changed-event workflow tests`` =
         let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
         let mutable counter = 0
 
-        let handler: MailboxProcessor<ParsingOutput> =
+        let handler: MailboxProcessor<AppNotification> =
             mkDemoAgent (function
                 | Workspaces w ->
                     counter <- counter + 1
@@ -81,7 +81,7 @@ module ``focus-changed-event workflow tests`` =
         let tcs = System.Threading.Tasks.TaskCompletionSource<bool>()
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let eventJson = loadFixture "focus-changed-event-with-no-matching-workspace.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+        let handler: MailboxProcessor<AppNotification> = mkDemoAgent ignore
 
         let mockWsClient =
             mkDemoAgent (function
@@ -102,7 +102,7 @@ module ``focus-changed-event workflow tests`` =
     let ``when state is empty, it triggers a workspace refresh`` () =
         let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
         let eventJson = loadFixture "focus-changed-event-with-no-matching-workspace.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+        let handler: MailboxProcessor<AppNotification> = mkDemoAgent ignore
 
         let mockWsClient = mkDemoAgent tcs.SetResult
 
@@ -121,7 +121,7 @@ module ``focus-changed-event workflow tests`` =
     let ``when emitted with other container then window, emits workspace query`` () =
         let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
         let eventJson = loadFixture "focus-changed-event-with-workspace-container.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+        let handler: MailboxProcessor<AppNotification> = mkDemoAgent ignore
         let mockWsClient = mkDemoAgent tcs.SetResult
         let parser = Parser(handler)
         parser.SetWsClient mockWsClient

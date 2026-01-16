@@ -50,7 +50,8 @@ type MainWindow() =
 type private TrayIconState =
     { Workspaces: WorkspacesNotification
       Paused: bool
-      CustomBinding: bool }
+      CustomBinding: bool
+      Refresh: bool }
 
 module Assets =
     let internal loadIcons () : Map<string, WindowIcon> =
@@ -74,7 +75,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
     // Hold references at the class level so they aren't garbage collected
     let mutable parser: Parser option = None
     let mutable wsClient: WebSocketClient option = None
-    let mutable messageHandler: MailboxProcessor<ParsingOutput> option = None
+    let mutable messageHandler: MailboxProcessor<AppNotification> option = None
 
     /// Enable/Disable the `reconnectMenuItem`
     let setReconnectMenuEnabled (state: bool) =
@@ -194,7 +195,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             initGlazeConnection ())
 
         let refreshItem = NativeMenuItem(Header = "Refresh")
-        refreshItem.Click.Add(fun _ -> wsClient |> Option.tryDo (fun c -> c.RefreshState()))
+        refreshItem.Click.Add(fun _ -> messageHandler |> Option.tryDo (fun h -> h.Post RefreshState))
 
         wss
         |> List.iter (fun m ->
@@ -223,8 +224,18 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
         tray.Menu <- menu
 
     let trayUpdater (desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
-        MailboxProcessor<ParsingOutput>.Start(fun inbox ->
-            let rec loop (state: TrayIconState) (iVariant: ThemeVariant) =
+        MailboxProcessor<AppNotification>.Start(fun inbox ->
+            let emptyState =
+                { Workspaces =
+                    { Current =
+                        { Name = "?"
+                          DisplayName = "Unknown Workspace" }
+                      Active = [] }
+                  Paused = false
+                  CustomBinding = false
+                  Refresh = false }
+
+            let rec loop (state: TrayIconState) =
                 async {
                     let! msg = inbox.Receive()
 
@@ -234,36 +245,32 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                                 let st =
                                     match msg with
                                     | Workspaces wn -> { state with Workspaces = wn }
+                                    | RefreshState ->
+                                        wsClient |> Option.tryDo (fun c -> c.RefreshState())
+                                        { state with Refresh = true }
                                     | Paused p -> { state with Paused = p }
                                     | NewBindingModes cb -> { state with CustomBinding = cb }
                                     | UnSuccessfulResponse msg ->
                                         sendNotification "Unsuccessful Response from GlazeWM" $"{msg}"
                                         state
 
-                                if st <> state || iVariant <> variant then
+                                if st <> state && (not st.Refresh) then
+                                    Log.Debug("Refreshing tray icon with: {State}", st)
                                     tray.Icon <- matchStateToIcon st
                                     tray.ToolTipText <- $"Workspace {st.Workspaces.Current.DisplayName}"
 
                                 if st.Workspaces.Active <> state.Workspaces.Active then
+                                    Log.Debug("Refreshing tray Menu with: {Active}", st.Workspaces.Active)
                                     updateTrayMenu desktopLifetime st.Workspaces.Active
 
-                                st)
+                                if st.Refresh then emptyState else st)
                             .GetTask()
                          |> Async.AwaitTask)
 
-                    return! loop newState variant
+                    return! loop newState
                 }
 
-            let defaultState =
-                { Workspaces =
-                    { Current =
-                        { Name = "?"
-                          DisplayName = "Unknown Workspace" }
-                      Active = [] }
-                  Paused = false
-                  CustomBinding = false }
-
-            loop defaultState variant)
+            loop emptyState)
 
     override this.Initialize() =
         this.Styles.Add(FluentTheme())
@@ -294,7 +301,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                 Log.Debug("Theme variant changed, new variant is {Variant}", variant)
                 variant <- this.ActualThemeVariant
                 // trigger recalculation of the icon
-                wsClient |> Option.tryDo (fun c -> c.RefreshState()))
+                messageHandler |> Option.tryDo (fun h -> h.Post RefreshState))
 
             desktopLifetime.Exit.Add(fun _ -> cleanup tray)
 

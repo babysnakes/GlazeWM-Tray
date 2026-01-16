@@ -35,7 +35,7 @@ type private MessageType =
 
 type private MessageTypeResult = Result<MessageType option, string>
 
-type Parser(handler: MailboxProcessor<ParsingOutput>) =
+type Parser(handler: MailboxProcessor<AppNotification>) =
 
     let errorEvent = Event<MessageParserEvent>()
     let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None

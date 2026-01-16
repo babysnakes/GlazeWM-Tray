@@ -11,12 +11,13 @@ let levelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
 Log.Logger <- LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).WriteTo.Console().CreateLogger()
 
 let demoHandler =
-    MailboxProcessor.Start(fun (inbox: MailboxProcessor<ParsingOutput>) ->
+    MailboxProcessor.Start(fun (inbox: MailboxProcessor<AppNotification>) ->
         let rec loop () =
             async {
                 let! msg = inbox.Receive()
 
                 match msg with
+                | RefreshState -> ()
                 | Workspaces wn ->
                     Log.Information(
                         "Current workspace: {Name}, {DisplayName}. Active workspaces: {Active}",
