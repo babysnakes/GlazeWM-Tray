@@ -10,3 +10,4 @@ foreach ($i in ($numbers + $chars))
 }
 
 magick generated/icon_16.png generated/icon_32.png generated/icon_64.png generated/icon_128.png generated/icon.ico
+magick generated/error_16.png generated/error_32.png generated/error.ico

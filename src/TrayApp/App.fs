@@ -60,6 +60,7 @@ module Assets =
 
         [ for id in ids do
               for theme in themes -> $"icon-{id}-{theme}" ]
+        |> List.append [ "icon"; "error" ]
         |> List.map (fun name -> name, WindowIcon(System.IO.Path.Combine("Assets", $"{name}.ico")))
         |> Map.ofList
 
@@ -68,7 +69,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
     let tray = new TrayIcon()
     let mutable variant: ThemeVariant = ThemeVariant.Default // we'll set it right in initialize...
-    let mutable workspaceIcons: Map<string, WindowIcon> = Map.empty
+    let mutable StatusIcons: Map<string, WindowIcon> = Map.empty
     let mutable reconnectMenuItem = NativeMenuItem()
     let uri = Uri("ws://localhost:6123/")
 
@@ -78,8 +79,10 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
     let mutable messageHandler: MailboxProcessor<AppNotification> option = None
 
     /// Enable/Disable the `reconnectMenuItem`
-    let setReconnectMenuEnabled (state: bool) =
-        Avalonia.Threading.Dispatcher.UIThread.Post(fun () -> reconnectMenuItem.IsEnabled <- state)
+    let setDisconnected (disconnected: bool) =
+        Avalonia.Threading.Dispatcher.UIThread.Post(fun () ->
+            reconnectMenuItem.IsEnabled <- disconnected
+            if disconnected then tray.Icon <- StatusIcons |> Map.find "error")
 
     /// logic for matching state to icon
     let matchStateToIcon (state: TrayIconState) =
@@ -94,9 +97,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
         let key = $"icon-{name}-{theme}"
 
-        workspaceIcons
-        |> Map.tryFind key
-        |> Option.defaultValue workspaceIcons["icon-qm-w"]
+        StatusIcons |> Map.tryFind key |> Option.defaultValue StatusIcons["icon-qm-g"]
 
     /// Toggle show/hide of the main window
     let toggleMainWindow (desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
@@ -125,7 +126,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             $"A fata error occured regarding communication with GlazeWM ({msg}). Check the logs for more details.\
               To renew communication with GlazeWM, please select 'Reinitialize GlazeWM Connection' from the tray menu."
 
-        setReconnectMenuEnabled true
+        setDisconnected true
         showErrorMessage "GlazeWM Communication Error" text
         parser <- None
         wsClient <- None
@@ -154,7 +155,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             wsClient <- Some client
             messageHandler <- Some agent
             // If we're connected, we can disable the reconnection menu item
-            setReconnectMenuEnabled false
+            setDisconnected false
 
             client.Error.Add(handleWsClientEvent)
             parser'.Error.Add(handleMessageParserEvent)
@@ -192,6 +193,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
         rmi.Click.Add(fun _ ->
             sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
+            messageHandler |> Option.tryDo (fun h -> h.Post RefreshState)
             initGlazeConnection ())
 
         let refreshItem = NativeMenuItem(Header = "Refresh")
@@ -275,7 +277,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
     override this.Initialize() =
         this.Styles.Add(FluentTheme())
         variant <- this.ActualThemeVariant
-        workspaceIcons <- Assets.loadIcons ()
+        StatusIcons <- Assets.loadIcons ()
 
     override this.OnFrameworkInitializationCompleted() =
         match this.ApplicationLifetime with
@@ -287,7 +289,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
             tray.ToolTipText <- "Workspace ?"
             updateTrayMenu desktopLifetime []
             tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime)
-            let app_icon = WindowIcon(System.IO.Path.Combine("Assets", "icon.ico"))
+            let app_icon = StatusIcons |> Map.find "icon"
             tray.Icon <- app_icon
             let icons = TrayIcons()
             icons.Add(tray)
