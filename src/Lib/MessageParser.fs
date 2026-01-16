@@ -186,7 +186,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 let nb = (parsed.Data.NewBindingModes |> List.isEmpty |> not)
                                 handler.Post(NewBindingModes nb)
                             | WorkspaceStar -> sendWebSocketMessage QWorkspaces
-                            | Unhandled m -> Log.Warning("Unhandled message: {Message}", m)
+                            | Unhandled m -> Log.Debug("Unhandled message: {Message}", m)
                         with
                         | :? OperationCanceledException as ex ->
                             Log.Information "Parser cancelled"
