@@ -24,6 +24,10 @@ type WorkspacesResponse = { Data: WorkspaceResponseData }
 
 type FocusChangedEventData = { FocusedContainer: Window }
 
+type WorkspacesNotification =
+    { Current: WorkspaceName
+      Active: WorkspaceName list }
+
 type FocusChangedEvent = { Data: FocusChangedEventData }
 
 type PauseChangedEventData = { IsPaused: bool }
@@ -41,8 +45,7 @@ type BindingModesChangedEventData = { NewBindingModes: BindingMode list }
 type BindingModesChangedEvent = { Data: BindingModesChangedEventData }
 
 type ParsingOutput =
-    | CurrentWorkspace of WorkspaceName
-    | ActiveWorkspaces of WorkspaceName list
+    | Workspaces of WorkspacesNotification
     | Paused of bool
     | NewBindingModes of bool
     | UnSuccessfulResponse of string
@@ -67,6 +70,22 @@ module WorkspaceResponse =
         { Name = name.ToLower()
           DisplayName = dn }
 
-    /// Try to find a workspace by its ID.
-    let tryGetWorkspace (id: Guid) (wr: WorkspacesResponse) =
-        wr.Data.Workspaces |> List.tryFind (fun w -> w.Id = id)
+    /// Try to Extract current workspace by GUID + active workspaces.
+    let tryGetWorkspaceNotificationByGuid (id: Guid) (wr: WorkspacesResponse) =
+        let active = wr.Data.Workspaces |> List.map extractWorkspaceName
+
+        wr.Data.Workspaces
+        |> List.tryFind (fun w -> w.Id = id)
+        |> Option.map extractWorkspaceName
+        |> Option.map (fun wn -> { Active = active; Current = wn })
+
+    /// Extract both current workspace and active workspaces from the response. Returns none if no current workspace is
+    /// found.
+    let tryGetWorkspacesNotification (wr: WorkspacesResponse) =
+        let active = wr.Data.Workspaces |> List.map extractWorkspaceName
+
+        wr
+        |> extractCurrentWorkspace
+        |> Option.map (fun current ->
+            let wn = current |> extractWorkspaceName
+            { Active = active; Current = wn })

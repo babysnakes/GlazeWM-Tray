@@ -48,8 +48,7 @@ type MainWindow() =
         base.Hide()
 
 type private TrayIconState =
-    { Workspace: WorkspaceName
-      ActiveWorkspaces: WorkspaceName list
+    { Workspaces: WorkspacesNotification
       Paused: bool
       CustomBinding: bool }
 
@@ -85,7 +84,13 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
     let matchStateToIcon (state: TrayIconState) =
         let bw = if variant = ThemeVariant.Dark then "w" else "b"
         let theme = if (state.Paused || state.CustomBinding) then "g" else bw
-        let name = if state.CustomBinding then "qm" else state.Workspace.Name
+
+        let name =
+            if state.CustomBinding then
+                "qm"
+            else
+                state.Workspaces.Current.Name
+
         let key = $"icon-{name}-{theme}"
 
         workspaceIcons
@@ -228,8 +233,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                             .InvokeAsync(fun () ->
                                 let st =
                                     match msg with
-                                    | CurrentWorkspace wn -> { state with Workspace = wn }
-                                    | ActiveWorkspaces aws -> { state with ActiveWorkspaces = aws }
+                                    | Workspaces wn -> { state with Workspaces = wn }
                                     | Paused p -> { state with Paused = p }
                                     | NewBindingModes cb -> { state with CustomBinding = cb }
                                     | UnSuccessfulResponse msg ->
@@ -238,10 +242,10 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
 
                                 if st <> state || iVariant <> variant then
                                     tray.Icon <- matchStateToIcon st
-                                    tray.ToolTipText <- $"Workspace {st.Workspace.Name}"
+                                    tray.ToolTipText <- $"Workspace {st.Workspaces.Current.DisplayName}"
 
-                                if st.ActiveWorkspaces <> state.ActiveWorkspaces then
-                                    updateTrayMenu desktopLifetime st.ActiveWorkspaces
+                                if st.Workspaces.Active <> state.Workspaces.Active then
+                                    updateTrayMenu desktopLifetime st.Workspaces.Active
 
                                 st)
                             .GetTask()
@@ -251,10 +255,11 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) =
                 }
 
             let defaultState =
-                { Workspace =
-                    { Name = "?"
-                      DisplayName = "Unknown Workspace" }
-                  ActiveWorkspaces = []
+                { Workspaces =
+                    { Current =
+                        { Name = "?"
+                          DisplayName = "Unknown Workspace" }
+                      Active = [] }
                   Paused = false
                   CustomBinding = false }
 

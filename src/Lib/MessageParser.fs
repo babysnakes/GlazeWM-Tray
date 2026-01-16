@@ -95,16 +95,10 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     /// Check for the current workspace and notifies the handler if found. Returns optional current workspace.
     let handleWorkspacesResponse (wr: WorkspacesResponse) =
-        wr.Data.Workspaces
-        |> List.map extractWorkspaceName
-        |> ActiveWorkspaces
-        |> handler.Post
-
-        match wr |> extractCurrentWorkspace with
-        | Some current ->
-            current |> extractWorkspaceName |> CurrentWorkspace |> handler.Post
-
-            Some(current, id)
+        match wr |> tryGetWorkspacesNotification with
+        | Some wn ->
+            wn |> Workspaces |> handler.Post
+            Some(())
         | None ->
             Log.Warning("No current workspace found in {Workspaces}", wr.Data)
             errorEvent.Trigger NoCurrentWorkspace
@@ -119,9 +113,8 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                 let! parentId = "data.focusedContainer.parentId" &= Parse.guid
 
                 return
-                    tryGetWorkspace parentId state
-                    |> Option.map extractWorkspaceName
-                    |> Option.map (CurrentWorkspace >> handler.Post)
+                    tryGetWorkspaceNotificationByGuid parentId state
+                    |> Option.map (Workspaces >> handler.Post)
             else
                 return None
         }
@@ -166,7 +159,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                                 let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
 
                                 match handleWorkspacesResponse parsed with
-                                | Some _ -> return! loop (Some parsed)
+                                | Some() -> return! loop (Some parsed)
                                 | None -> ()
                             | QueryPaused m ->
                                 Log.Debug("messageParser received query paused: {Message}", m)

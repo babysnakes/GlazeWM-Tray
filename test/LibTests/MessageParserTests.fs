@@ -13,12 +13,12 @@ module ``workspace response parsing tests`` =
     [<Test>]
     let ``correctly parses workspace response`` () =
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
-        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspaceName>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
 
         let handler: MailboxProcessor<ParsingOutput> =
             mkDemoAgent (fun s ->
                 match s with
-                | CurrentWorkspace r -> tcs.SetResult(r)
+                | Workspaces r -> tcs.SetResult(r)
                 | _ -> ())
 
         let parser = Parser(handler)
@@ -26,8 +26,10 @@ module ``workspace response parsing tests`` =
         dispatcher.Post queryWorkspacesResponse
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
         let result = tcs.Task.Result
-        result.Name |> should equal "2"
-        result.DisplayName |> should equal "2"
+        result.Current.Name |> should equal "2"
+        result.Current.DisplayName |> should equal "2"
+        result.Active |> should haveLength 2
+        result.Active |> should contain result.Current
 
     [<Test>]
     let ``MessageParser emits error when workspace response does not contain current workspace`` () =
@@ -53,12 +55,12 @@ module ``focus-changed-event workflow tests`` =
     let ``happy workflow triggers active workspace response`` () =
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let eventJson = loadFixture "basic-focus-changed-event.json"
-        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspaceName>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
         let mutable counter = 0
 
         let handler: MailboxProcessor<ParsingOutput> =
             mkDemoAgent (function
-                | CurrentWorkspace w ->
+                | Workspaces w ->
                     counter <- counter + 1
 
                     if counter = 2 then tcs.SetResult(w)
@@ -71,7 +73,8 @@ module ``focus-changed-event workflow tests`` =
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
         let result = tcs.Task.Result
         // The expected current workspace is calculated by joining the two JSON files loaded.
-        result.Name |> should equal "2"
+        result.Current.Name |> should equal "2"
+        result.Active |> should contain result.Current
 
     [<Test>]
     let ``when focused window parent id is not found, it triggers a workspace refresh`` () =
@@ -281,7 +284,7 @@ module ``Actor Resilience Test`` =
 
         let handler =
             mkDemoAgent (function
-                | CurrentWorkspace _ -> tcs.SetResult()
+                | Workspaces _ -> tcs.SetResult()
                 | msg -> TestContext.Progress.WriteLine($"handler invalid message: {msg}"))
 
         let errorHandler =

@@ -17,9 +17,13 @@ let demoHandler =
                 let! msg = inbox.Receive()
 
                 match msg with
-                | CurrentWorkspace wn ->
-                    Log.Information("Current workspace: {Name}, {DisplayName}", wn.Name, wn.DisplayName)
-                | ActiveWorkspaces wss -> Log.Information("Active workspaces: {Workspaces}", wss)
+                | Workspaces wn ->
+                    Log.Information(
+                        "Current workspace: {Name}, {DisplayName}. Active workspaces: {Active}",
+                        wn.Current.Name,
+                        wn.Current.DisplayName,
+                        wn.Active |> List.map (fun w -> w.Name)
+                    )
                 | Paused b -> Log.Information("Paused: {State}", b)
                 | NewBindingModes b -> Log.Information("New binding modes: {Modes}", b)
                 | UnSuccessfulResponse msg -> Log.Error("Unsuccessful Response: {Message}", msg)
