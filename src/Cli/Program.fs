@@ -1,5 +1,6 @@
 ﻿// For more information see https://aka.ms/fsharp-console-apps
 open System
+open GlazeWM.Tray.Literals
 open Serilog
 open Serilog.Core
 open Serilog.Events
@@ -41,7 +42,10 @@ let parser = Parser(demoHandler)
 let client = new WebSocketClient(uri, parser.Dispatcher())
 parser.SetWsClient client.Agent
 let mutable failureOccured = false
-client.InitializeSubscription()
+
+[ $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}"
+  QWorkspaces ]
+|> List.iter client.SendMessage
 
 // IMPORTANT: listen to error events
 client.Error.Add(fun msg ->
@@ -63,9 +67,6 @@ let rec ReadAndSendLoop () =
         ReadAndSendLoop()
     | "info" ->
         levelSwitch.MinimumLevel <- LogEventLevel.Information
-        ReadAndSendLoop()
-    | "refresh" ->
-        client.RefreshState()
         ReadAndSendLoop()
     | _ ->
         client.Agent.Post(SendMessage input)
