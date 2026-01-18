@@ -4,22 +4,7 @@ open System.IO
 open Fleck
 
 let mutable currentSocket: IWebSocketConnection option = None
-let server = new WebSocketServer("ws://0.0.0.0:8181")
-
-server.Start(fun socket ->
-    socket.OnOpen <-
-        fun () ->
-            printfn $">> Client Connected: {socket.ConnectionInfo.ClientIpAddress}"
-            currentSocket <- Some socket
-
-    socket.OnClose <-
-        fun () ->
-            printfn ">> Client Disconnected"
-            currentSocket <- None
-
-    socket.OnMessage <- fun message -> printfn $">> Received: %s{message}")
-
-printfn "Server started on ws://0.0.0.0:8181"
+let mutable server: WebSocketServer option = None
 
 let readFixture fileName =
     let relativePath =
@@ -28,6 +13,29 @@ let readFixture fileName =
     File.ReadAllText(relativePath)
 
 let sampleWorkspaces = readFixture "basic-workspaces-response.json"
+let basicFocusChangedEvent = readFixture "basic-focus-changed-event.json"
+let unpausedResponse = readFixture "unpaused-query-response.json"
+let defaultBindings = readFixture "binding-modes-default-query-response.json"
+let newBindings = readFixture "binding-modes-custom-query-response.json"
+
+let run () =
+    let localServer = new WebSocketServer("ws://0.0.0.0:8181")
+
+    localServer.Start(fun socket ->
+        socket.OnOpen <-
+            fun () ->
+                printfn $">> Client Connected: {socket.ConnectionInfo.ClientIpAddress}"
+                currentSocket <- Some socket
+
+        socket.OnClose <-
+            fun () ->
+                printfn ">> Client Disconnected"
+                currentSocket <- None
+
+        socket.OnMessage <- fun message -> printfn $">> Received: %s{message}")
+
+    printfn "Server started on ws://0.0.0.0:8181"
+    server <- Some localServer
 
 let send (msg: string) =
     match currentSocket with
@@ -36,13 +44,47 @@ let send (msg: string) =
         printfn $"Sent: %s{msg}"
     | None -> printfn "No client connected!"
 
-let closeClient () =
+let runAuto () =
+    let localServer = new WebSocketServer("ws://0.0.0.0:8181")
+
+    localServer.Start(fun socket ->
+        socket.OnOpen <-
+            fun () ->
+                printfn $">> Client Connected: {socket.ConnectionInfo.ClientIpAddress}"
+                currentSocket <- Some socket
+
+        socket.OnClose <-
+            fun () ->
+                printfn ">> Client Disconnected"
+                currentSocket <- None
+
+        socket.OnMessage <-
+            fun message ->
+                match message with
+                | "query workspaces" -> send sampleWorkspaces
+                | "query paused" -> send unpausedResponse
+                | "query binding-modes" -> send defaultBindings
+                | _ -> printfn $">> Received: %s{message}")
+
+    printfn "Server started on ws://0.0.0.0:8181"
+    server <- Some localServer
+
+let stop () =
     match currentSocket with
     | Some s ->
         s.Close()
+        currentSocket <- None
         printfn "Closed client connection"
+        server |> Option.iter (fun s -> s.Dispose())
+        server <- None
     | None -> printfn "No client connected!"
 
-let stopServer () =
-    server.Dispose()
-    printfn "Server stopped"
+let stopError () =
+    match currentSocket with
+    | Some s ->
+        s.Close(500)
+        currentSocket <- None
+        printfn "Closed client connection with error"
+        server |> Option.iter (fun s -> s.Dispose())
+        server <- None
+    | None -> printfn "No client connected!"
