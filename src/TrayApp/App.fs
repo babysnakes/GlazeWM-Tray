@@ -68,7 +68,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
     inherit Application()
 
     let uri = Uri("ws://localhost:6123/")
-    let StatusIcons: Map<string, WindowIcon> = Assets.loadIcons ()
+    let statusIcons: Map<string, WindowIcon> = Assets.loadIcons ()
     let tray = new TrayIcon()
     let mutable disconnected: bool = false
     let mutable parser: Parser option = None // Just to avoid GC on MessageParser
@@ -97,7 +97,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
                 state.Workspaces.Current.Name
 
         let key = $"icon-{name}-{theme}"
-        StatusIcons |> Map.tryFind key |> Option.defaultValue StatusIcons["icon-qm-g"]
+        statusIcons |> Map.tryFind key |> Option.defaultValue statusIcons["icon-qm-g"]
 
     /// Toggle show/hide of the main window
     let toggleMainWindow (desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
@@ -132,8 +132,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         disconnected <- true
 
         Avalonia.Threading.Dispatcher.UIThread.Post(fun () ->
-            this.updateTrayMenu []
-            tray.Icon <- StatusIcons |> Map.find "error")
+            this.UpdateTrayMenu []
+            tray.Icon <- statusIcons |> Map.find "error")
 
         parser <- None
         wsClient <- None
@@ -193,7 +193,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
 
                                     if st.Workspaces.Active <> state.Workspaces.Active then
                                         Log.Debug("Refreshing tray Menu with: {Active}", st.Workspaces.Active)
-                                        this.updateTrayMenu st.Workspaces.Active
+                                        this.UpdateTrayMenu st.Workspaces.Active
 
                                     st)
                             .GetTask()
@@ -204,7 +204,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
 
             loop emptyState)
 
-    member private _.initGlazeConnection() =
+    member private _.InitGlazeConnection() =
         let parser' = Parser(agent)
         let client = new WebSocketClient(uri, parser'.Dispatcher())
         parser'.SetWsClient client.Agent
@@ -221,7 +221,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
 
         agent.Post RefreshState
 
-    member private _.updateTrayMenu(wss: WorkspaceName list) =
+    member private _.UpdateTrayMenu(wss: WorkspaceName list) =
         match this.ApplicationLifetime with
         | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
             let menu = NativeMenu()
@@ -250,7 +250,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
 
             rmi.Click.Add(fun _ ->
                 sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
-                this.initGlazeConnection ())
+                this.InitGlazeConnection())
 
             let refreshItem = NativeMenuItem(Header = "Refresh")
             refreshItem.Click.Add(fun _ -> agent.Post RefreshState)
@@ -290,15 +290,15 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
             // Make shut down explicit, Don't shut down when closing the main window
             desktopLifetime.ShutdownMode <- ShutdownMode.OnExplicitShutdown
             tray.ToolTipText <- "Workspace ?"
-            this.updateTrayMenu []
+            this.UpdateTrayMenu []
             // tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime) // there's noting there currently ...
-            let app_icon = StatusIcons |> Map.find "icon"
+            let app_icon = statusIcons |> Map.find "icon"
             tray.Icon <- app_icon
             let icons = TrayIcons()
             icons.Add(tray)
             TrayIcon.SetIcons(this, icons)
             agent.Error.Add(handleAgentError)
-            this.initGlazeConnection ()
+            this.InitGlazeConnection()
 
             this.ActualThemeVariantChanged.Add(fun _ ->
                 Log.Debug("Theme variant changed, new variant is {Variant}", this.ActualThemeVariant)
