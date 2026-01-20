@@ -1,8 +1,6 @@
 ﻿namespace GlazeWM.Tray.MessageParser
 
 open System
-open System.Text.Json
-open System.Text.Json.Serialization
 open Farse
 open Farse.Operators
 open FsToolkit.ErrorHandling
@@ -20,11 +18,11 @@ type MessageParserEvent =
 
 type private JsonType =
     | FocusChanged of string
-    | PausedChanged of JsonElement
-    | BindingModesChanged of JsonElement
-    | QueryWorkspaces of JsonElement
+    | PausedChanged of string
+    | BindingModesChanged of string
+    | QueryWorkspaces of string
     | QueryPaused of string
-    | QueryBindingModes of JsonElement
+    | QueryBindingModes of string
     | Unhandled of string
     | WorkspaceStar
 
@@ -40,6 +38,19 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
     let errorEvent = Event<MessageParserEvent>()
     let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
 
+    let reportResultError (sbj: string) (result: Result<_, string>) =
+        result
+        |> Result.teeError (fun e ->
+            Log.Error(e, "Error parsing {Sbj}:", sbj)
+            errorEvent.Trigger(ParseError e))
+
+    /// Reports error to `errorEvent` if failed.
+    let handleError sbj result = reportResultError sbj result |> ignore
+
+    /// Convert the result to an Option. Report error to `errorEvent` if failed.
+    let toOption (sbj: string) =
+        reportResultError sbj >> Result.toOption
+
     let sendWebSocketMessage (msg: string) =
         match wsClient with
         | Some client -> client.Post(SendMessage msg)
@@ -53,9 +64,6 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
         | Ok(Some _) -> current
         | Ok None -> f json
         | Error e -> Error e
-
-    let extractRoot (json: string) =
-        JsonDocument.Parse(json) |> _.RootElement
 
     let tryUnsuccessfulResponse (json: string) =
         parser {
@@ -98,7 +106,7 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
         match wr |> tryGetWorkspacesNotification with
         | Some wn ->
             wn |> Workspaces |> handler.Post
-            Some(())
+            Some(wr)
         | None ->
             Log.Warning("No current workspace found in {Workspaces}", wr.Data)
             errorEvent.Trigger NoCurrentWorkspace
@@ -119,10 +127,7 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
                 return None
         }
         |> Parser.parse json
-        |> Result.teeError (fun e ->
-            Log.Error("Error parsing focus changed event: {Ex}", e)
-            errorEvent.Trigger(ParseError e))
-        |> Result.toOption
+        |> toOption "focus changed event"
         |> Option.flatten
 
     let handleQueryPausedResponse (json: string) =
@@ -131,17 +136,12 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
             return paused |> Paused |> handler.Post
         }
         |> Parser.parse json
-        |> Result.teeError (fun e ->
-            Log.Error("Error parsing query paused response: {Ex}", e)
-            errorEvent.Trigger(ParseError e))
-        |> ignore
+        |> handleError "query paused response"
 
     let messageParser =
         let agent =
             MailboxProcessor<JsonType>.Start(fun inbox ->
                 let rec loop (state: WorkspacesResponse option) =
-                    let options = JsonFSharpOptions.Default().ToJsonSerializerOptions()
-                    options.PropertyNameCaseInsensitive <- true
 
                     async {
                         let! msg = inbox.Receive()
@@ -156,28 +156,40 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
                                 |> Option.defaultWith (fun () -> sendWebSocketMessage QWorkspaces)
                             | QueryWorkspaces m ->
                                 Log.Debug("messageParser received query workspaces: {Message}", m)
-                                let parsed = JsonSerializer.Deserialize<WorkspacesResponse>(m, options)
+                                let parsed = wrParser |> Parser.parse m |> toOption "query workspaces response"
 
-                                match handleWorkspacesResponse parsed with
-                                | Some() -> return! loop (Some parsed)
+                                match (parsed |> Option.bind handleWorkspacesResponse) with
+                                | Some wr -> return! loop (Some wr)
                                 | None -> ()
                             | QueryPaused m ->
                                 Log.Debug("messageParser received query paused: {Message}", m)
                                 handleQueryPausedResponse m
                             | QueryBindingModes m ->
                                 Log.Debug("messageParser received query binding modes: {Message}", m)
-                                let parsed = JsonSerializer.Deserialize<BindingModesQueryResponse>(m, options)
-                                let nb = (parsed.Data.BindingModes |> List.isEmpty |> not)
-                                handler.Post(NewBindingModes nb)
+
+                                result {
+                                    let! parsed = Parser.parse m BindingModeQueryResponse.parser
+                                    let nb = (parsed.Data.BindingModes |> List.isEmpty |> not)
+                                    return handler.Post(NewBindingModes nb)
+                                }
+                                |> handleError "new binding modes response"
                             | PausedChanged m ->
                                 Log.Debug("messageParser received pause changed: {Message}", m)
-                                let parsed = JsonSerializer.Deserialize<PauseChangedEvent>(m, options)
-                                handler.Post(Paused parsed.Data.IsPaused)
+
+                                result {
+                                    let! parsed = Parser.parse m PauseChangedEvent.parser
+                                    return handler.Post(Paused parsed.Data.IsPaused)
+                                }
+                                |> handleError "pause changed event"
                             | BindingModesChanged m ->
                                 Log.Debug("messageParser received binding modes changed: {Message}", m)
-                                let parsed = JsonSerializer.Deserialize<BindingModesChangedEvent>(m, options)
-                                let nb = (parsed.Data.NewBindingModes |> List.isEmpty |> not)
-                                handler.Post(NewBindingModes nb)
+
+                                result {
+                                    let! parsed = Parser.parse m BindingModesChangedEvent.parser
+                                    let nb = (parsed.Data.NewBindingModes |> List.isEmpty |> not)
+                                    return handler.Post(NewBindingModes nb)
+                                }
+                                |> handleError "binding modes event"
                             | WorkspaceStar -> sendWebSocketMessage QWorkspaces
                             | Unhandled m -> Log.Debug("Unhandled message: {Message}", m)
                         with
@@ -207,8 +219,6 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
                         let! msg = inbox.Receive()
 
                         try
-                            let root = extractRoot msg
-
                             tryUnsuccessfulResponse msg
                             |> mergeMatcher msg trySubscriptionEvent
                             |> mergeMatcher msg tryQueryResponse
@@ -216,14 +226,14 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
                                 | Ok(Some(UnSuccessfulResponseType msg)) -> handler.Post(UnSuccessfulResponse msg)
                                 | Ok(Some(SubscriptionResponseType SFocusCH)) -> messageParser.Post(FocusChanged msg)
                                 | Ok(Some(SubscriptionResponseType SBindingModesCH)) ->
-                                    messageParser.Post(BindingModesChanged root)
-                                | Ok(Some(SubscriptionResponseType SPauseCH)) -> messageParser.Post(PausedChanged root)
+                                    messageParser.Post(BindingModesChanged msg)
+                                | Ok(Some(SubscriptionResponseType SPauseCH)) -> messageParser.Post(PausedChanged msg)
                                 | Ok(Some(SubscriptionResponseType SWorkspaceUP))
                                 | Ok(Some(SubscriptionResponseType SWorkspaceDeACT))
                                 | Ok(Some(SubscriptionResponseType SWorkspaceACT)) -> messageParser.Post(WorkspaceStar)
-                                | Ok(Some(QueryResponseType QWorkspaces)) -> messageParser.Post(QueryWorkspaces root)
+                                | Ok(Some(QueryResponseType QWorkspaces)) -> messageParser.Post(QueryWorkspaces msg)
                                 | Ok(Some(QueryResponseType QPaused)) -> messageParser.Post(QueryPaused msg)
-                                | Ok(Some(QueryResponseType QBinding)) -> messageParser.Post(QueryBindingModes root)
+                                | Ok(Some(QueryResponseType QBinding)) -> messageParser.Post(QueryBindingModes msg)
                                 | Ok _ -> messageParser.Post(Unhandled msg)
                                 | Error e ->
                                     Log.Error("Error parsing message: {Ex}", e)

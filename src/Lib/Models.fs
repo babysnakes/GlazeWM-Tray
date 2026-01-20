@@ -52,6 +52,37 @@ type AppNotification =
     | UnSuccessfulResponse of string
 
 module WorkspaceResponse =
+    open Farse
+    open Farse.Operators
+
+    let workspaceParser =
+        parser {
+            let! id = "id" &= Parse.guid
+            and! name = "name" &= Parse.string
+            and! displayName = "displayName" ?= Parse.string
+            and! parentId = "parentId" &= Parse.guid
+            and! hasFocus = "hasFocus" &= Parse.bool
+
+            return
+                { Id = id
+                  Name = name
+                  DisplayName = displayName
+                  ParentId = parentId
+                  HasFocus = hasFocus }
+        }
+
+    let dataParser =
+        parser {
+            let! workspaces = "workspaces" &= Parse.list workspaceParser
+
+            return { Workspaces = workspaces }
+        }
+
+    let wrParser: Parser<WorkspacesResponse> =
+        parser {
+            let! data = "data" &= dataParser
+            return { Data = data }
+        }
 
     /// Extracts the current workspace's name (if found). It might return the index as the name if the name is too long.
     let extractCurrentWorkspace (wr: WorkspacesResponse) =
@@ -90,3 +121,66 @@ module WorkspaceResponse =
         |> Option.map (fun current ->
             let wn = current |> extractWorkspaceName
             { Active = active; Current = wn })
+
+module BindingModeQueryResponse =
+    open Farse
+    open Farse.Operators
+    open Farse.Parse
+
+    let bmParser =
+        parser {
+            let! name = "name" &= string
+            return { Name = name }
+        }
+
+    let dataParser =
+        parser {
+            let! bindingModes = "bindingModes" &= list bmParser
+            return { BindingModes = bindingModes }
+        }
+
+    let parser: Parser<BindingModesQueryResponse> =
+        parser {
+            let! data = "data" &= dataParser
+            return { Data = data }
+        }
+
+module BindingModesChangedEvent =
+    open Farse
+    open Farse.Operators
+    open Farse.Parse
+
+    let bmParser =
+        parser {
+            let! name = "name" &= string
+            return { Name = name }
+        }
+
+    let dataParser =
+        parser {
+            let! bindingModes = "newBindingModes" &= list bmParser
+            return { NewBindingModes = bindingModes }
+        }
+
+    let parser: Parser<BindingModesChangedEvent> =
+        parser {
+            let! data = "data" &= dataParser
+            return { Data = data }
+        }
+
+module PauseChangedEvent =
+    open Farse
+    open Farse.Operators
+    open Farse.Parse
+
+    let dataParser =
+        parser {
+            let! isPaused = "isPaused" &= bool
+            return { IsPaused = isPaused }
+        }
+
+    let parser: Parser<PauseChangedEvent> =
+        parser {
+            let! data = "data" &= dataParser
+            return { Data = data }
+        }

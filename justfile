@@ -34,3 +34,8 @@ ci: restore check-format
 icons:
 	@powershell -c '.\gen-icons.ps1'
 	mv generated/*.ico ../src/TrayApp/Assets/
+
+[working-directory: 'src/TrayApp/']
+[doc("Package the applicationm for distribution")]
+package:
+	dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true

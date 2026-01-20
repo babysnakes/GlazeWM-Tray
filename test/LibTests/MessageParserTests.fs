@@ -264,16 +264,16 @@ module ``Actor Resilience Test`` =
         [ { File = "non-json.json"
             ErrorMessage = "'n' is an invalid start" }
           { File = "invalid-workspace-response.json"
-            ErrorMessage = "Missing field for record type" }
+            ErrorMessage = "Could not parse property 'name'" }
           // This case is unique, it fails before parsing for lack of wsClient
           { File = "invalid-focus-changed-event.json"
             ErrorMessage = "UnsetWsClient" }
           { File = "binding-modes-invalid.json"
-            ErrorMessage = "Missing field for record type" }
+            ErrorMessage = "Error: Could not parse property 'name'" }
           { File = "error-paused-query-response.json"
             ErrorMessage = "Expected Bool, but got String" }
           { File = "invalid-paused-event.json"
-            ErrorMessage = "Missing field for record type" } ]
+            ErrorMessage = "Could not parse property 'isPaused'" } ]
 
     [<TestCaseSource(nameof mkInvalidJsonTypes)>]
     let ``keeps working after non/invalid json input`` (input: TestInput) =

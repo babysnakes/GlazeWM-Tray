@@ -5,10 +5,16 @@
     <OutputType Condition="'$(Configuration)' != 'Debug'">WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <AssemblyName>GlazeWM-Tray</AssemblyName>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>link</TrimMode>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
- 
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Microsoft.Toolkit.Uwp.Notifications" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Include="Helpers.fs" />
     <Compile Include="App.fs" />
