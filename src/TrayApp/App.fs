@@ -138,6 +138,13 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         parser <- None
         wsClient <- None
 
+    let handleAgentError (ex: Exception) =
+        let text =
+            $"An fatal error occured in the application's agent:\n\n{ex.Message}.\n\nPlease restart the application!"
+
+        Log.Error(ex, "TrayIcon agent error:")
+        showErrorMessage "TrayIcon Agent Error" text
+
     let handleMessageParserEvent (msg: MessageParserEvent) =
         match msg with
         | ParseError s -> Log.Error("A parser exception had occured: {Err}", s)
@@ -290,7 +297,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
             let icons = TrayIcons()
             icons.Add(tray)
             TrayIcon.SetIcons(this, icons)
-            // TODO: listen to agent's errors?
+            agent.Error.Add(handleAgentError)
             this.initGlazeConnection ()
 
             this.ActualThemeVariantChanged.Add(fun _ ->
