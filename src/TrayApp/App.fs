@@ -123,8 +123,9 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
     /// Resets both the `parser` and `wsClient` references and prints an error message to the user.
     let handleCommunicationError (msg: string) =
         let text =
-            $"A fata error occured regarding communication with GlazeWM ({msg}). Check the logs for more details.\
-              To renew communication with GlazeWM, please select 'Reinitialize GlazeWM Connection' from the tray menu."
+            $"A fata error occured regarding communication with GlazeWM \n\n{msg}. \n\nCheck the logs for more \
+              details. To renew communication with GlazeWM after you make sure it runs correctly, please select \
+              'Reinitialize GlazeWM Connection' from the tray menu."
 
         showErrorMessage "GlazeWM Communication Error" text
         Log.Error("A websocket client exception had occured: {Err}", msg)

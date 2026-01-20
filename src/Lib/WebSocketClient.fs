@@ -36,12 +36,14 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
                         messageBuilder.Append(chunk) |> ignore
                         receiving <- not currentResult.EndOfMessage
 
-                    let jsonString = messageBuilder.ToString()
-                    parser.Post(jsonString)
 
                     if result.MessageType = WebSocketMessageType.Close then
-                        Log.Information "Server closed the connection."
+                        Log.Warning "GlazeWM closed the connection."
+                        errorEvent.Trigger("GlazeWM closed the connection.")
                         cts.Cancel()
+                    else
+                        let jsonString = messageBuilder.ToString()
+                        parser.Post(jsonString)
 
                 with
                 | :? OperationCanceledException as ex ->
