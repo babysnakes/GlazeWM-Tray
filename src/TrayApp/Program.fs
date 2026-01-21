@@ -33,6 +33,11 @@ module Program =
 
     [<EntryPoint>]
     let main (args: string[]) =
+        AppDomain.CurrentDomain.UnhandledException.Add(fun e ->
+            let ex = (e.ExceptionObject :?> Exception)
+            Log.Fatal(ex, "Unhandled exception causing crash")
+            Log.CloseAndFlush())
+
         AppBuilder
             .Configure<App>(fun _ -> mkApp ())
             .LogToTrace()
