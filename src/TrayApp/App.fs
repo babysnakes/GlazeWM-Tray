@@ -1,6 +1,7 @@
 ﻿namespace GlazeWM.TrayApp.Application
 
 open System
+open System.Reflection
 open Avalonia
 open Avalonia.Controls
 open Avalonia.Controls.ApplicationLifetimes
@@ -20,18 +21,30 @@ open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
 
 module Main =
+    let version =
+        Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+        |> Option.ofObj
+        |> Option.map (fun a -> a.InformationalVersion)
+        |> Option.defaultValue "0.0-error"
+        // Optional: Remove the Git commit hash often appended in .NET 8+
+        |> fun v -> v.Split('+')[0]
 
     let view () =
         Component(fun _ ->
-
             DockPanel.create
                 [ DockPanel.children
-                      [ TextBlock.create
-                            [ TextBlock.dock Dock.Top
-                              TextBlock.fontSize 48.0
-                              TextBlock.verticalAlignment VerticalAlignment.Center
-                              TextBlock.horizontalAlignment HorizontalAlignment.Center
-                              TextBlock.text "GlazeWM Tray DEV" ] ] ])
+                      [ StackPanel.create
+                            [ StackPanel.verticalAlignment VerticalAlignment.Center
+                              StackPanel.children
+                                  [ TextBlock.create
+                                        [ TextBlock.fontSize 48.0
+                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
+                                          TextBlock.text "GlazeWM Tray" ]
+                                    TextBlock.create
+                                        [ TextBlock.fontSize 18.0
+                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
+                                          TextBlock.opacity 0.6
+                                          TextBlock.text $"Version {version}" ] ] ] ] ])
 
 type MainWindow() =
     inherit HostWindow()
