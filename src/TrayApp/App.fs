@@ -33,7 +33,16 @@ module Main =
         Component(fun _ ->
             DockPanel.create
                 [ DockPanel.children
-                      [ StackPanel.create
+                      [ // Footer text docked to the bottom
+                        TextBlock.create
+                            [ DockPanel.dock Dock.Bottom
+                              TextBlock.margin (0.0, 0.0, 0.0, 20.0)
+                              TextBlock.fontSize 12.0
+                              TextBlock.horizontalAlignment HorizontalAlignment.Center
+                              TextBlock.opacity 0.5
+                              TextBlock.text "To close: ESC or ENTER or CTRL+W" ]
+
+                        StackPanel.create
                             [ StackPanel.verticalAlignment VerticalAlignment.Center
                               StackPanel.children
                                   [ TextBlock.create
@@ -46,6 +55,7 @@ module Main =
                                           TextBlock.opacity 0.6
                                           TextBlock.text $"Version {version}" ] ] ] ] ])
 
+
 type MainWindow() =
     inherit HostWindow()
 
@@ -54,6 +64,16 @@ type MainWindow() =
         base.Width <- 600
         base.Height <- 400
         base.Content <- Main.view ()
+
+    override this.OnKeyDown(e: Avalonia.Input.KeyEventArgs) =
+        base.OnKeyDown(e)
+
+        let isCtrlW =
+            e.Key = Avalonia.Input.Key.W
+            && e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control)
+
+        if e.Key = Avalonia.Input.Key.Escape || e.Key = Avalonia.Input.Key.Enter || isCtrlW then
+            this.Close()
 
     override this.OnClosing(e: WindowClosingEventArgs) =
         this.Hide()
@@ -238,8 +258,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         match this.ApplicationLifetime with
         | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
             let menu = NativeMenu()
-            let showHideItem = NativeMenuItem(Header = "Show/Hide Window")
-            showHideItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
+            let aboutItem = NativeMenuItem(Header = "About")
+            aboutItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
 
             let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
             openLogsMenu.Click.Add(openLogsDir)
@@ -289,8 +309,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
             menu.Items.Add(toggleDebug) // Add it to your menu
             menu.Items.Add(NativeMenuItemSeparator())
             menu.Items.Add(rmi)
-            menu.Items.Add(showHideItem)
             menu.Items.Add(refreshItem)
+            menu.Items.Add(aboutItem)
             menu.Items.Add(quitItem)
             tray.Menu <- menu
         | _ -> ()
