@@ -32,6 +32,11 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.FuncUI" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Diagnostics">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" />
     <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />

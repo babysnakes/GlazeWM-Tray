@@ -19,6 +19,7 @@ open GlazeWM.Tray.Models
 open GlazeWM.Tray.WebSocketClient
 open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
+open System.Diagnostics
 
 module Main =
     let version =
@@ -188,9 +189,9 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
             handleCommunicationError $"MessageParser: {ex.Message}"
 
     let openLogsDir _ =
-        let startInfo = System.Diagnostics.ProcessStartInfo(logDir)
+        let startInfo = ProcessStartInfo(logDir)
         startInfo.UseShellExecute <- true
-        System.Diagnostics.Process.Start(startInfo) |> ignore
+        Process.Start(startInfo) |> ignore
 
     let agent =
         MailboxProcessor<AppNotification>.Start(fun inbox ->
@@ -318,6 +319,10 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
     override _.Initialize() = this.Styles.Add(FluentTheme())
 
     override _.OnFrameworkInitializationCompleted() =
+#if DEBUG
+        if Debugger.IsAttached then this.AttachDevTools()
+#endif
+
         match this.ApplicationLifetime with
         | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
             // Make shut down explicit, Don't shut down when closing the main window
