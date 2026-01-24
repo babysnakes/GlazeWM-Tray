@@ -31,16 +31,15 @@ module Program =
 #endif
         App(levelSwitch, logDir)
 
-    [<EntryPoint>]
+    [<CompiledName "BuildAvaloniaApp">]
+    let buildAvaloniaApp () =
+        AppBuilder.Configure<App>(fun _ -> mkApp ()).LogToTrace().UsePlatformDetect().UseSkia().WithInterFont()
+
+    [<EntryPoint; STAThread>]
     let main (args: string[]) =
         AppDomain.CurrentDomain.UnhandledException.Add(fun e ->
             let ex = (e.ExceptionObject :?> Exception)
             Log.Fatal(ex, "Unhandled exception causing crash")
             Log.CloseAndFlush())
 
-        AppBuilder
-            .Configure<App>(fun _ -> mkApp ())
-            .LogToTrace()
-            .UsePlatformDetect()
-            .UseSkia()
-            .StartWithClassicDesktopLifetime(args)
+        buildAvaloniaApp().StartWithClassicDesktopLifetime(args)
