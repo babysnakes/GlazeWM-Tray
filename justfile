@@ -1,5 +1,7 @@
-set shell := ["powershell", "-Command"]
+set shell := ["powershell", "-NoProfile", "-Command"]
 
+build_dir := "output/build"
+dist_dir := "output/dist"
 version := `([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version`
 defaultRID := 'win-x64'
 
@@ -37,14 +39,40 @@ ci: restore check-format
 [doc('Generate icons from PNG images (exported from Affinity)')]
 [working-directory('resources')]
 icons:
-    .\gen-icons.ps1
+    #!powershell -NoProfile
+    $ErrorActionPreference = 'Stop'
+    Set-StrictMode -Version Latest
+
+    $numbers = 0..9
+    $chars = ,"qm"
+
+    foreach ($i in ($numbers + $chars))
+    {
+        magick generated/icon-$i-b_16.png generated/icon-$i-b_32.png generated/icon-$i-b.ico
+        magick generated/icon-$i-w_16.png generated/icon-$i-w_32.png generated/icon-$i-w.ico
+        magick generated/icon-$i-g_16.png generated/icon-$i-g_32.png generated/icon-$i-g.ico
+    }
+
+    magick generated/icon_16.png generated/icon_32.png generated/icon_64.png generated/icon_128.png generated/icon.ico
+    magick generated/error_16.png generated/error_32.png generated/error.ico
     mv generated/*.ico ../src/TrayApp/Assets/
 
 [doc("Package the applicationm for distribution")]
 package rid=defaultRID:
-    dotnet publish ./src/TrayApp/TrayApp.fsproj \
-        -c Release \
-        -r {{ rid }} \
-        --self-contained true \
-        -p:PublishSingleFile=true \
-        -o dist/{{rid}}/GlazeWM-Tray-{{ version }}
+    #!powershell -NoProfile
+    $ErrorActionPreference = 'Stop'
+    Set-StrictMode -Version Latest
+
+    $buildPath = "{{ build_dir }}/{{ rid }}/GlazeWM-Tray"
+    if (Test-Path $BuildPath) { rm $BuildPath -Recurse }
+    dotnet publish ./src/TrayApp/TrayApp.fsproj `
+        -c Release `
+        -r {{ rid }} `
+        --self-contained true `
+        -p:PublishSingleFile=true `
+        -o $buildPath
+
+    New-Item -ItemType Directory -Force -Path '{{ dist_dir }}' | Out-Null
+    $zipFile = "{{ dist_dir }}/GlazeWM-Tray_{{ version }}_{{ rid }}.zip"
+    if (Test-Path $zipFile) { rm $zipFile -Recurse }
+    Compress-Archive -Path $buildPath -DestinationPath $zipFile

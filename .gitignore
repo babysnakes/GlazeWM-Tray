@@ -488,4 +488,4 @@ $RECYCLE.BIN/
 resources/generated/
 
 # Build output
-/dist/
+/output/
