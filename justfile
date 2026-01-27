@@ -42,11 +42,11 @@ icons:
     #!powershell -NoProfile
     $ErrorActionPreference = 'Stop'
     Set-StrictMode -Version Latest
+    Remove-Item generated/*.ico,../src/TrayApp/Assets/*.ico
 
-    $numbers = 0..9
-    $chars = ,"qm"
+    $chars = [string[]]([char[]](97..122) + (0..9) + "qm")
 
-    foreach ($i in ($numbers + $chars))
+    foreach ($i in $chars)
     {
         magick generated/icon-$i-b_16.png generated/icon-$i-b_32.png generated/icon-$i-b.ico
         magick generated/icon-$i-w_16.png generated/icon-$i-w_32.png generated/icon-$i-w.ico
@@ -76,3 +76,6 @@ package rid=defaultRID:
     $zipFile = "{{ dist_dir }}/GlazeWM-Tray_{{ version }}_{{ rid }}.zip"
     if (Test-Path $zipFile) { rm $zipFile -Recurse }
     Compress-Archive -Path $buildPath -DestinationPath $zipFile
+
+[doc("Distribute all supported architectures")]
+dist: (package "win-x64") (package "win-arm64")
