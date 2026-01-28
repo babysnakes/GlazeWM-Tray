@@ -1,12 +1,12 @@
-﻿namespace CounterApp
+﻿namespace GlazeWM.TrayAPP.Main
 
 open System
 open System.IO
 open Avalonia
-open GlazeWM.TrayApp.Application
 open Serilog
 open Serilog.Core
 open Serilog.Events
+open GlazeWM.TrayApp.Application
 
 module Program =
 
@@ -31,11 +31,15 @@ module Program =
 #endif
         App(levelSwitch, logDir)
 
-    [<EntryPoint>]
+    [<CompiledName "BuildAvaloniaApp">]
+    let buildAvaloniaApp () =
+        AppBuilder.Configure<App>(fun _ -> mkApp ()).LogToTrace().UsePlatformDetect().UseSkia().WithInterFont()
+
+    [<EntryPoint; STAThread>]
     let main (args: string[]) =
-        AppBuilder
-            .Configure<App>(fun _ -> mkApp ())
-            .LogToTrace()
-            .UsePlatformDetect()
-            .UseSkia()
-            .StartWithClassicDesktopLifetime(args)
+        AppDomain.CurrentDomain.UnhandledException.Add(fun e ->
+            let ex = (e.ExceptionObject :?> Exception)
+            Log.Fatal(ex, "Unhandled exception causing crash")
+            Log.CloseAndFlush())
+
+        buildAvaloniaApp().StartWithClassicDesktopLifetime(args)

@@ -486,3 +486,6 @@ $RECYCLE.BIN/
 
 # Generated icons
 resources/generated/
+
+# Build output
+/output/

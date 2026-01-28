@@ -3,7 +3,6 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="FSharp.SystemTextJson" Version="1.4.36" />
     <PackageVersion Include="FsToolkit.ErrorHandling" Version="5.1.0" />
     <PackageVersion Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
     <PackageVersion Include="Serilog" Version="4.3.0" />
@@ -11,9 +10,11 @@
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="Farse" Version="0.6.0" />
     <!-- Avalonia -->
-    <PackageVersion Include="Avalonia.Desktop" Version="11.3.10" />
+    <PackageVersion Include="Avalonia.Desktop" Version="11.3.11" />
     <PackageVersion Include="Avalonia.FuncUI" Version="1.5.2" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.10" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.11" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.11" />
+    <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.11" />
     <!-- Testing Dependencies-->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Fleck" Version="1.2.0" />

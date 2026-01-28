@@ -1,24 +1,24 @@
 ﻿module LibTests.MessageParserTests
 
 open FsUnit
+open LibTests.CommonHelpers
+open NUnit.Framework
 open GlazeWM.Tray.Literals
 open GlazeWM.Tray.MessageParser
-open GlazeWM.Tray.WebSocketClient
-open LibTests.CommonHelpers
 open GlazeWM.Tray.Models
-open NUnit.Framework
+open GlazeWM.Tray.WebSocketClient
 
 module ``workspace response parsing tests`` =
 
     [<Test>]
     let ``correctly parses workspace response`` () =
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
-        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspaceName>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
 
-        let handler: MailboxProcessor<ParsingOutput> =
+        let handler: MailboxProcessor<AppNotification> =
             mkDemoAgent (fun s ->
                 match s with
-                | CurrentWorkspace r -> tcs.SetResult(r)
+                | Workspaces r -> tcs.SetResult(r)
                 | _ -> ())
 
         let parser = Parser(handler)
@@ -26,8 +26,10 @@ module ``workspace response parsing tests`` =
         dispatcher.Post queryWorkspacesResponse
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
         let result = tcs.Task.Result
-        result.Name |> should equal "2"
-        result.DisplayName |> should equal "2"
+        result.Current.Name |> should equal "2"
+        result.Current.DisplayName |> should equal "2"
+        result.Active |> should haveLength 2
+        result.Active |> should contain result.Current
 
     [<Test>]
     let ``MessageParser emits error when workspace response does not contain current workspace`` () =
@@ -53,12 +55,12 @@ module ``focus-changed-event workflow tests`` =
     let ``happy workflow triggers active workspace response`` () =
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let eventJson = loadFixture "basic-focus-changed-event.json"
-        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspaceName>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
         let mutable counter = 0
 
-        let handler: MailboxProcessor<ParsingOutput> =
+        let handler: MailboxProcessor<AppNotification> =
             mkDemoAgent (function
-                | CurrentWorkspace w ->
+                | Workspaces w ->
                     counter <- counter + 1
 
                     if counter = 2 then tcs.SetResult(w)
@@ -71,14 +73,15 @@ module ``focus-changed-event workflow tests`` =
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
         let result = tcs.Task.Result
         // The expected current workspace is calculated by joining the two JSON files loaded.
-        result.Name |> should equal "2"
+        result.Current.Name |> should equal "2"
+        result.Active |> should contain result.Current
 
     [<Test>]
     let ``when focused window parent id is not found, it triggers a workspace refresh`` () =
         let tcs = System.Threading.Tasks.TaskCompletionSource<bool>()
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let eventJson = loadFixture "focus-changed-event-with-no-matching-workspace.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+        let handler: MailboxProcessor<AppNotification> = mkDemoAgent ignore
 
         let mockWsClient =
             mkDemoAgent (function
@@ -99,7 +102,7 @@ module ``focus-changed-event workflow tests`` =
     let ``when state is empty, it triggers a workspace refresh`` () =
         let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
         let eventJson = loadFixture "focus-changed-event-with-no-matching-workspace.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+        let handler: MailboxProcessor<AppNotification> = mkDemoAgent ignore
 
         let mockWsClient = mkDemoAgent tcs.SetResult
 
@@ -118,7 +121,7 @@ module ``focus-changed-event workflow tests`` =
     let ``when emitted with other container then window, emits workspace query`` () =
         let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
         let eventJson = loadFixture "focus-changed-event-with-workspace-container.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
+        let handler: MailboxProcessor<AppNotification> = mkDemoAgent ignore
         let mockWsClient = mkDemoAgent tcs.SetResult
         let parser = Parser(handler)
         parser.SetWsClient mockWsClient
@@ -261,16 +264,16 @@ module ``Actor Resilience Test`` =
         [ { File = "non-json.json"
             ErrorMessage = "'n' is an invalid start" }
           { File = "invalid-workspace-response.json"
-            ErrorMessage = "Missing field for record type" }
+            ErrorMessage = "Could not parse property 'name'" }
           // This case is unique, it fails before parsing for lack of wsClient
           { File = "invalid-focus-changed-event.json"
             ErrorMessage = "UnsetWsClient" }
           { File = "binding-modes-invalid.json"
-            ErrorMessage = "Missing field for record type" }
+            ErrorMessage = "Error: Could not parse property 'name'" }
           { File = "error-paused-query-response.json"
             ErrorMessage = "Expected Bool, but got String" }
           { File = "invalid-paused-event.json"
-            ErrorMessage = "Missing field for record type" } ]
+            ErrorMessage = "Could not parse property 'isPaused'" } ]
 
     [<TestCaseSource(nameof mkInvalidJsonTypes)>]
     let ``keeps working after non/invalid json input`` (input: TestInput) =
@@ -281,7 +284,7 @@ module ``Actor Resilience Test`` =
 
         let handler =
             mkDemoAgent (function
-                | CurrentWorkspace _ -> tcs.SetResult()
+                | Workspaces _ -> tcs.SetResult()
                 | msg -> TestContext.Progress.WriteLine($"handler invalid message: {msg}"))
 
         let errorHandler =

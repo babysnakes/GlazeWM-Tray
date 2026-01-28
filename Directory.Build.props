@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <Version>0.1.0-beta1</Version>
     <WarningsAsErrors>$(WarningsAsErrors);FS0025</WarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <!-- Optional: Fails the build if the lock file is out of sync (good for CI) -->

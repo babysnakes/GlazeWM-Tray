@@ -1,24 +1,31 @@
 ﻿// For more information see https://aka.ms/fsharp-console-apps
 open System
-open GlazeWM.Tray.MessageParser
-open GlazeWM.Tray.Models
-open GlazeWM.Tray.WebSocketClient
+open GlazeWM.Tray.Literals
 open Serilog
 open Serilog.Core
 open Serilog.Events
+open GlazeWM.Tray.MessageParser
+open GlazeWM.Tray.Models
+open GlazeWM.Tray.WebSocketClient
 
 let levelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
 Log.Logger <- LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).WriteTo.Console().CreateLogger()
 
 let demoHandler =
-    MailboxProcessor.Start(fun (inbox: MailboxProcessor<ParsingOutput>) ->
+    MailboxProcessor.Start(fun (inbox: MailboxProcessor<AppNotification>) ->
         let rec loop () =
             async {
                 let! msg = inbox.Receive()
 
                 match msg with
-                | CurrentWorkspace wn ->
-                    Log.Information("Current workspace: {Name}, {DisplayName}", wn.Name, wn.DisplayName)
+                | RefreshState -> ()
+                | Workspaces wn ->
+                    Log.Information(
+                        "Current workspace: {Name}, {DisplayName}. Active workspaces: {Active}",
+                        wn.Current.Name,
+                        wn.Current.DisplayName,
+                        wn.Active |> List.map (fun w -> w.Name)
+                    )
                 | Paused b -> Log.Information("Paused: {State}", b)
                 | NewBindingModes b -> Log.Information("New binding modes: {Modes}", b)
                 | UnSuccessfulResponse msg -> Log.Error("Unsuccessful Response: {Message}", msg)
@@ -35,7 +42,10 @@ let parser = Parser(demoHandler)
 let client = new WebSocketClient(uri, parser.Dispatcher())
 parser.SetWsClient client.Agent
 let mutable failureOccured = false
-client.InitializeSubscription()
+
+[ $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}"
+  QWorkspaces ]
+|> List.iter client.SendMessage
 
 // IMPORTANT: listen to error events
 client.Error.Add(fun msg ->
@@ -57,9 +67,6 @@ let rec ReadAndSendLoop () =
         ReadAndSendLoop()
     | "info" ->
         levelSwitch.MinimumLevel <- LogEventLevel.Information
-        ReadAndSendLoop()
-    | "refresh" ->
-        client.RefreshState()
         ReadAndSendLoop()
     | _ ->
         client.Agent.Post(SendMessage input)
