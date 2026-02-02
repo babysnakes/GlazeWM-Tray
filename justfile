@@ -26,6 +26,10 @@ lint:
 
 check: check-format lint
 
+[doc('Verbose testing')]
+vtest:
+	dotnet test -- NUnit.ConsoleOut=1
+
 [doc('Restore from scratch honering the lock file')]
 restore:
     dotnet tool restore

@@ -264,16 +264,16 @@ module ``Actor Resilience Test`` =
         [ { File = "non-json.json"
             ErrorMessage = "'n' is an invalid start" }
           { File = "invalid-workspace-response.json"
-            ErrorMessage = "Could not parse property 'name'" }
+            ErrorMessage = "$.data.workspaces[0].name" }
           // This case is unique, it fails before parsing for lack of wsClient
           { File = "invalid-focus-changed-event.json"
             ErrorMessage = "UnsetWsClient" }
           { File = "binding-modes-invalid.json"
-            ErrorMessage = "Error: Could not parse property 'name'" }
+            ErrorMessage = "$.data.newBindingModes[0].name" }
           { File = "error-paused-query-response.json"
             ErrorMessage = "Expected Bool, but got String" }
           { File = "invalid-paused-event.json"
-            ErrorMessage = "Could not parse property 'isPaused'" } ]
+            ErrorMessage = "$.data.isPaused" } ]
 
     [<TestCaseSource(nameof mkInvalidJsonTypes)>]
     let ``keeps working after non/invalid json input`` (input: TestInput) =
@@ -326,4 +326,4 @@ module ``Actor Resilience Test`` =
         dispatcher.Post json
 
         if not (tcs.Task.Wait(1000)) then
-            Assert.Fail($"timeout unset wsClient")
+            Assert.Fail("timeout unset wsClient")
