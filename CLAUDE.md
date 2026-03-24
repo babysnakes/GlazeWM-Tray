@@ -52,6 +52,16 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 - **Prefer suggestions over edits** — unless explicitly asked, don't edit code directly. Instead, offer idiomatic F# solutions with samples that resemble the actual code. Where feasible, provide a self-contained `.fsx` script the user can run independently to explore the approach outside the project.
 - **Avalonia class/function balance** — Avalonia is a C# library and sometimes requires classes (e.g. the `App` class in `App.fs`). Prefer `let` functions for logic, but some behaviour belongs in class methods by design — don't force everything into `let` bindings when the class method is the natural fit.
 
+## Cross-Platform Notes
+
+- The project is being extended for macOS.
+- Only development lock files are committed; publish-time lock file changes are
+  intentionally ignored for now.
+- With multi-targeting, RID-specific native packages can introduce
+  platform-divergent lock file entries. The goal is that `dotnet restore` on
+  both Windows and macOS produces the same development lock file; if that breaks,
+  regenerate with `dotnet restore --force-evaluate` and commit the result.
+
 ## Key Patterns
 
 - **MailboxProcessor agents** for concurrency (WebSocket client, tray icon state)

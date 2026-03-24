@@ -55,6 +55,16 @@
           "Avalonia": "11.3.12"
         }
       },
+      "MessageBox.Avalonia": {
+        "type": "Direct",
+        "requested": "[3.3.1.1, )",
+        "resolved": "3.3.1.1",
+        "contentHash": "a0NocLvE0ipg0REevrMtilNI+ud+tFTJW7YrPtploeM93ew8S3Y6hEybqZ7W9q5Yqa9u+xOrOjAlG1lTihWhnQ==",
+        "dependencies": {
+          "Avalonia": "11.1.5",
+          "DialogHost.Avalonia": "0.8.1"
+        }
+      },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
         "requested": "[10.0.5, )",
@@ -187,6 +197,14 @@
           "Avalonia": "11.3.12",
           "Avalonia.FreeDesktop": "11.3.12",
           "Avalonia.Skia": "11.3.12"
+        }
+      },
+      "DialogHost.Avalonia": {
+        "type": "Transitive",
+        "resolved": "0.8.1",
+        "contentHash": "RLBOMqjJPgSmwe0i1pzX3Q7Pn0i4xE/E1b774krd4VyEkaorz1AYMdYQHyIfuhtQv5NntZyS0MuQbxJl/PhzBg==",
+        "dependencies": {
+          "Avalonia": "11.1.0"
         }
       },
       "FSharp.Core": {

@@ -1,9 +1,12 @@
 ﻿namespace GlazeWM.TrayApp.Helpers
 
 open System
-open System.Runtime.InteropServices
+open System.Threading.Tasks
 open Microsoft.Toolkit.Uwp.Notifications
+open MsBox.Avalonia
+open MsBox.Avalonia.Enums
 open Serilog
+
 open GlazeWM.Tray.Literals
 
 [<RequireQualifiedAccess>]
@@ -27,11 +30,18 @@ module Notifications =
             .AddButton(ToastButton().SetContent("Report the bug").SetProtocolActivation(Uri(BugUrl)))
             .Show()
 
-    /// Define the Win32 MessageBox function
-    [<DllImport("user32.dll", CharSet = CharSet.Unicode)>]
-    extern int MessageBoxW(nativeint hWnd, string text, string caption, uint32 type')
-
-    /// Send Windows native error message box
+    /// Send error message box
     let showErrorMessage (title: string) (message: string) =
-        // 0x00040010u is MB_ICONERROR + MB_TOPMOST
-        MessageBoxW(nativeint 0, message, title, 0x00040010u) |> ignore
+        async {
+            try
+                do!
+                    Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(fun () ->
+                        let box =
+                            MessageBoxManager.GetMessageBoxStandard(title, message, ButtonEnum.Ok, Icon.Error)
+
+                        box.ShowAsync() :> Task)
+                    |> Async.AwaitTask
+            with ex ->
+                Log.Error(ex, "Failed to show error message box")
+        }
+        |> Async.Start
