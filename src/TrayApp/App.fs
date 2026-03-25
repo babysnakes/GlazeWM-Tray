@@ -104,6 +104,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
     let uri = Uri("ws://localhost:6123/")
     let statusIcons: Map<string, WindowIcon> = Assets.loadIcons ()
     let tray = new TrayIcon()
+    let mutable persistentMenuItems: NativeMenuItem seq = seq { }
     let mutable disconnected: bool = false
     let mutable parser: Parser option = None // Just to avoid GC on MessageParser
     let mutable wsClient: WebSocketClient option = None
@@ -256,65 +257,69 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         agent.Post RefreshState
 
     member private _.UpdateTrayMenu(wss: WorkspaceName list) =
-        match this.ApplicationLifetime with
-        | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
-            let menu = NativeMenu()
-            let aboutItem = NativeMenuItem(Header = "About")
-            aboutItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
+        tray.Menu.Items.Clear()
 
-            let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
-            openLogsMenu.Click.Add(openLogsDir)
-
-            let toggleDebug =
-                NativeMenuItem(Header = "Verbose Logging", ToggleType = NativeMenuItemToggleType.CheckBox)
-
-            toggleDebug.IsChecked <- false
-
-            toggleDebug.Click.Add(fun _ ->
-                if toggleDebug.IsChecked then
-                    levelSwitch.MinimumLevel <- Events.LogEventLevel.Debug
+        wss
+        |> List.iter (fun m ->
+            let dn =
+                if m.Name = m.DisplayName then
+                    $"Workspace {m.Name}"
                 else
-                    levelSwitch.MinimumLevel <- Events.LogEventLevel.Information)
+                    m.DisplayName
 
-            let quitItem = NativeMenuItem(Header = "Quit")
-            quitItem.Click.Add(fun _ -> desktopLifetime.Shutdown(0))
+            let item = NativeMenuItem(Header = $"{m.Name} - {dn}")
 
-            let rmi = NativeMenuItem(Header = "Reinitialize GlazeWM Connection")
-            rmi.IsEnabled <- disconnected
+            item.Click.Add(fun _ ->
+                wsClient
+                |> Option.tryDo (fun c -> $"{CFocusWorkspacePrefix} {m.Name}" |> SendMessage |> c.Agent.Post))
 
-            rmi.Click.Add(fun _ ->
-                sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
-                this.InitGlazeConnection())
+            tray.Menu.Items.Add(item))
 
-            let refreshItem = NativeMenuItem(Header = "Refresh")
-            refreshItem.Click.Add(fun _ -> agent.Post RefreshState)
+        persistentMenuItems |> Seq.iter tray.Menu.Items.Add
 
-            wss
-            |> List.iter (fun m ->
-                let dn =
-                    if m.Name = m.DisplayName then
-                        $"Workspace {m.Name}"
-                    else
-                        m.DisplayName
+    /// One time function to populate the persistent tray menu items
+    member private _.InitializePersistentMenuItems(desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
+        let aboutItem = NativeMenuItem(Header = "About")
+        aboutItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
 
-                let item = NativeMenuItem(Header = $"{m.Name} - {dn}")
+        let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
+        openLogsMenu.Click.Add(openLogsDir)
 
-                item.Click.Add(fun _ ->
-                    wsClient
-                    |> Option.tryDo (fun c -> $"{CFocusWorkspacePrefix} {m.Name}" |> SendMessage |> c.Agent.Post))
+        let toggleDebug =
+            NativeMenuItem(Header = "Verbose Logging", ToggleType = NativeMenuItemToggleType.CheckBox)
 
-                menu.Items.Add(item))
+        toggleDebug.IsChecked <- false
 
-            menu.Items.Add(NativeMenuItemSeparator())
-            menu.Items.Add(openLogsMenu)
-            menu.Items.Add(toggleDebug) // Add it to your menu
-            menu.Items.Add(NativeMenuItemSeparator())
-            menu.Items.Add(rmi)
-            menu.Items.Add(refreshItem)
-            menu.Items.Add(aboutItem)
-            menu.Items.Add(quitItem)
-            tray.Menu <- menu
-        | _ -> ()
+        toggleDebug.Click.Add(fun _ ->
+            if toggleDebug.IsChecked then
+                levelSwitch.MinimumLevel <- Events.LogEventLevel.Debug
+            else
+                levelSwitch.MinimumLevel <- Events.LogEventLevel.Information)
+
+        let quitItem = NativeMenuItem(Header = "Quit")
+        quitItem.Click.Add(fun _ -> desktopLifetime.Shutdown(0))
+
+        let rmi = NativeMenuItem(Header = "Reinitialize GlazeWM Connection")
+        rmi.IsEnabled <- disconnected
+
+        rmi.Click.Add(fun _ ->
+            sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
+            this.InitGlazeConnection())
+
+        let refreshItem = NativeMenuItem(Header = "Refresh")
+        refreshItem.Click.Add(fun _ -> agent.Post RefreshState)
+
+        persistentMenuItems <-
+            seq {
+                NativeMenuItemSeparator()
+                openLogsMenu
+                toggleDebug // Add it to your menu
+                NativeMenuItemSeparator()
+                rmi
+                refreshItem
+                aboutItem
+                quitItem
+            }
 
     override _.Initialize() = this.Styles.Add(FluentTheme())
 
@@ -328,6 +333,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
             // Make shut down explicit, Don't shut down when closing the main window
             desktopLifetime.ShutdownMode <- ShutdownMode.OnExplicitShutdown
             tray.ToolTipText <- "Workspace ?"
+            tray.Menu <- NativeMenu()
+            this.InitializePersistentMenuItems(desktopLifetime)
             this.UpdateTrayMenu []
             // tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime) // there's noting there currently ...
             let app_icon = statusIcons |> Map.find "icon"
