@@ -1,13 +1,10 @@
 ﻿namespace GlazeWM.TrayApp.Helpers
 
-open System
 open System.Threading.Tasks
-open Microsoft.Toolkit.Uwp.Notifications
 open MsBox.Avalonia
 open MsBox.Avalonia.Enums
 open Serilog
 
-open GlazeWM.Tray.Literals
 
 [<RequireQualifiedAccess>]
 module Option =
@@ -19,9 +16,11 @@ module Option =
 module Notifications =
     /// Send Windows toast basic notification
     let sendNotification title body =
-        ToastContentBuilder().AddText(title).AddText(body).Show()
+        // ToastContentBuilder().AddText(title).AddText(body).Show()
+        Log.Warning $"Notification title: {title}, body: {body}"
 
     let sendBugNotification bug =
+        (*
         ToastContentBuilder()
             .AddText("You encountered a bug!")
             .AddText(
@@ -29,6 +28,8 @@ module Notifications =
             )
             .AddButton(ToastButton().SetContent("Report the bug").SetProtocolActivation(Uri(BugUrl)))
             .Show()
+        *)
+        Log.Warning $"Bug notification title: {bug}"
 
     /// Send error message box
     let showErrorMessage (title: string) (message: string) =
