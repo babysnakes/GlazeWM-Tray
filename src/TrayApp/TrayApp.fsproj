@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <Compile Include="Helpers.fs" />
+    <Compile Include="MainView.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
     <Content Include="Assets\*.ico">

@@ -1,14 +1,11 @@
 ﻿namespace GlazeWM.TrayApp.Application
 
 open System
-open System.Reflection
+open System.Diagnostics
 open Avalonia
 open Avalonia.Controls
 open Avalonia.Controls.ApplicationLifetimes
-open Avalonia.FuncUI.Hosts
-open Avalonia.FuncUI
-open Avalonia.FuncUI.DSL
-open Avalonia.Layout
+open Avalonia.Controls.Notifications
 open Avalonia.Styling
 open Avalonia.Themes.Fluent
 open Serilog
@@ -19,67 +16,7 @@ open GlazeWM.Tray.Models
 open GlazeWM.Tray.WebSocketClient
 open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
-open System.Diagnostics
-
-module Main =
-    let version =
-        Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-        |> Option.ofObj
-        |> Option.map (fun a -> a.InformationalVersion)
-        |> Option.defaultValue "0.0-error"
-        // Optional: Remove the Git commit hash often appended in .NET 8+
-        |> fun v -> v.Split('+')[0]
-
-    let view () =
-        Component(fun _ ->
-            DockPanel.create
-                [ DockPanel.children
-                      [ // Footer text docked to the bottom
-                        TextBlock.create
-                            [ DockPanel.dock Dock.Bottom
-                              TextBlock.margin (0.0, 0.0, 0.0, 20.0)
-                              TextBlock.fontSize 12.0
-                              TextBlock.horizontalAlignment HorizontalAlignment.Center
-                              TextBlock.opacity 0.5
-                              TextBlock.text "To close: ESC or ENTER or CTRL+W" ]
-
-                        StackPanel.create
-                            [ StackPanel.verticalAlignment VerticalAlignment.Center
-                              StackPanel.children
-                                  [ TextBlock.create
-                                        [ TextBlock.fontSize 48.0
-                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                          TextBlock.text "GlazeWM Tray" ]
-                                    TextBlock.create
-                                        [ TextBlock.fontSize 18.0
-                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                          TextBlock.opacity 0.6
-                                          TextBlock.text $"Version {version}" ] ] ] ] ])
-
-
-type MainWindow() =
-    inherit HostWindow()
-
-    do
-        base.Title <- "GlazeWM Tray"
-        base.Width <- 600
-        base.Height <- 400
-        base.Content <- Main.view ()
-
-    override this.OnKeyDown(e: Avalonia.Input.KeyEventArgs) =
-        base.OnKeyDown(e)
-
-        let isCtrlW =
-            e.Key = Avalonia.Input.Key.W
-            && e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control)
-
-        if e.Key = Avalonia.Input.Key.Escape || e.Key = Avalonia.Input.Key.Enter || isCtrlW then
-            this.Close()
-
-    override this.OnClosing(e: WindowClosingEventArgs) =
-        this.Hide()
-        e.Cancel <- true
-        base.Hide()
+open GlazeWM.TrayApp.Views
 
 type private TrayIconState =
     { Workspaces: WorkspacesNotification
@@ -104,10 +41,12 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
     let uri = Uri("ws://localhost:6123/")
     let statusIcons: Map<string, WindowIcon> = Assets.loadIcons ()
     let tray = new TrayIcon()
+    let reInitializeMenu = NativeMenuItem(Header = "Reinitialize GlazeWM Connection")
     let mutable persistentMenuItems: NativeMenuItem seq = seq { }
     let mutable disconnected: bool = false
     let mutable parser: Parser option = None // Just to avoid GC on MessageParser
     let mutable wsClient: WebSocketClient option = None
+    let mutable mainWindow: MainWindow option = None
 
     let emptyState =
         { Workspaces =
@@ -135,20 +74,19 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         statusIcons |> Map.tryFind key |> Option.defaultValue statusIcons["icon-qm-g"]
 
     /// Toggle show/hide of the main window
-    let toggleMainWindow (desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
-        match desktopLifetime.MainWindow with
-        | null ->
-            let w = MainWindow()
-            desktopLifetime.MainWindow <- w
-            w.Show()
-        | w when w.IsVisible |> not ->
+    let toggleMainWindow () =
+        match mainWindow with
+        | None ->
+            sendBugNotification "Null MainWindow"
+            showErrorMessage "App Error" "MainWindow is null, please restart the application"
+        | Some w when w.IsVisible |> not ->
             w.Show()
 
             if w.WindowState = WindowState.Minimized then
                 w.WindowState <- WindowState.Normal
 
             w.Activate()
-        | w -> w.Hide()
+        | Some w -> w.Hide()
 
     let cleanup (tray: TrayIcon) =
         Log.Information("Shutting down...")
@@ -208,14 +146,21 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
                                     | Workspaces wn -> { state with Workspaces = wn }
                                     | RefreshState ->
                                         wsClient
-                                        |> Option.tryDo (fun c ->
+                                        |> Option.tryDo "wsClient" (fun c ->
                                             [ QWorkspaces; QBinding; QPaused ] |> List.iter c.SendMessage)
 
                                         { state with Refresh = true }
                                     | Paused p -> { state with Paused = p }
                                     | NewBindingModes cb -> { state with CustomBinding = cb }
                                     | UnSuccessfulResponse msg ->
-                                        sendNotification "Unsuccessful Response from GlazeWM" $"{msg}"
+                                        mainWindow
+                                        |> Option.tryDo "mainWindow" (fun w ->
+                                            w.Notify(
+                                                "Unsuccessful Response from GlazeWM",
+                                                $"{msg}",
+                                                NotificationType.Error
+                                            ))
+
                                         state
 
                                 if st.Refresh then
@@ -271,16 +216,18 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
 
             item.Click.Add(fun _ ->
                 wsClient
-                |> Option.tryDo (fun c -> $"{CFocusWorkspacePrefix} {m.Name}" |> SendMessage |> c.Agent.Post))
+                |> Option.tryDo "wsClient" (fun c ->
+                    $"{CFocusWorkspacePrefix} {m.Name}" |> SendMessage |> c.Agent.Post))
 
             tray.Menu.Items.Add(item))
 
+        reInitializeMenu.IsEnabled <- disconnected
         persistentMenuItems |> Seq.iter tray.Menu.Items.Add
 
     /// One time function to populate the persistent tray menu items
     member private _.InitializePersistentMenuItems(desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
         let aboutItem = NativeMenuItem(Header = "About")
-        aboutItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
+        aboutItem.Click.Add(fun _ -> toggleMainWindow ())
 
         let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
         openLogsMenu.Click.Add(openLogsDir)
@@ -299,11 +246,11 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         let quitItem = NativeMenuItem(Header = "Quit")
         quitItem.Click.Add(fun _ -> desktopLifetime.Shutdown(0))
 
-        let rmi = NativeMenuItem(Header = "Reinitialize GlazeWM Connection")
-        rmi.IsEnabled <- disconnected
+        reInitializeMenu.Click.Add(fun _ ->
+            mainWindow
+            |> Option.tryDo "mainWindow" (fun w ->
+                w.Notify("Reinitializing GlazeWM Connection", "Attempting to reconnect..."))
 
-        rmi.Click.Add(fun _ ->
-            sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
             this.InitGlazeConnection())
 
         let refreshItem = NativeMenuItem(Header = "Refresh")
@@ -315,7 +262,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
                 openLogsMenu
                 toggleDebug // Add it to your menu
                 NativeMenuItemSeparator()
-                rmi
+                reInitializeMenu
                 refreshItem
                 aboutItem
                 quitItem
@@ -336,7 +283,9 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
             tray.Menu <- NativeMenu()
             this.InitializePersistentMenuItems(desktopLifetime)
             this.UpdateTrayMenu []
-            // tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime) // there's noting there currently ...
+            let w = MainWindow()
+            mainWindow <- Some w
+            tray.Clicked.Add(fun _ -> toggleMainWindow ())
             let app_icon = statusIcons |> Map.find "icon"
             tray.Icon <- app_icon
             let icons = TrayIcons()

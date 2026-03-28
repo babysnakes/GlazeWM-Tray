@@ -10,10 +10,10 @@ open GlazeWM.Tray.Literals
 
 [<RequireQualifiedAccess>]
 module Option =
-    let tryDo (f: 'T -> unit) =
+    let tryDo t (f: 'T -> unit) =
         function
         | Some x -> f x
-        | None -> Log.Warning("tryDo on None")
+        | None -> Log.Warning($"tryDo on None (type: {t})")
 
 module Notifications =
     let private openUri uri =
