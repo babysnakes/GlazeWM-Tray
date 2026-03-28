@@ -17,6 +17,7 @@ let basicFocusChangedEvent = readFixture "basic-focus-changed-event.json"
 let unpausedResponse = readFixture "unpaused-query-response.json"
 let defaultBindings = readFixture "binding-modes-default-query-response.json"
 let newBindings = readFixture "binding-modes-custom-query-response.json"
+let workspacesNoFocus = readFixture "basic-workspaces-response-with-no-focus.json"
 
 let run () =
     let localServer = new WebSocketServer("ws://0.0.0.0:8181")
@@ -88,3 +89,7 @@ let stopError () =
         server |> Option.iter (fun s -> s.Dispose())
         server <- None
     | None -> printfn "No client connected!"
+
+(* -- Snippets you can select and evaluate in FSI
+send workspacesNoFocus
+*)
