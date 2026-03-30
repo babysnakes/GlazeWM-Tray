@@ -1,16 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType Condition="'$(Configuration)' == 'Debug'">Exe</OutputType>
-    <OutputType Condition="'$(Configuration)' != 'Debug'">WinExe</OutputType>
+    <OutputType>Exe</OutputType>
+    <OutputType Condition="'$(Configuration)' != 'Debug' AND $([MSBuild]::IsOSPlatform('windows'))">WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>GlazeWM-Tray</AssemblyName>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="$([MSBuild]::IsOSPlatform('windows'))">app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>link</TrimMode>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <BuiltInComInteropSupport Condition="$([MSBuild]::IsOSPlatform('windows'))">true</BuiltInComInteropSupport>
+    <ApplicationIcon Condition="$([MSBuild]::IsOSPlatform('windows'))">Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,12 +32,9 @@
     <PackageReference Include="Avalonia.FuncUI" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Fonts.Inter" />
-    <PackageReference Include="Avalonia.Diagnostics">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" />
     <PackageReference Include="MessageBox.Avalonia" />
-    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />
   </ItemGroup>
 </Project>

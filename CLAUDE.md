@@ -68,5 +68,4 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 - **Railway-oriented programming** with Result types via FsToolkit.ErrorHandling
 - F# file ordering matters — files compile top-to-bottom as listed in .fsproj
 - Central Package Management via `Directory.Packages.props`
-- TrayApp targets `net10.0-windows10.0.19041.0`; Lib and Cli target `net10.0`
 - **Published trimmed** — avoid libraries that rely on reflection (e.g. System.Text.Json source generators are fine, but reflection-based serializers will break at runtime after trimming)

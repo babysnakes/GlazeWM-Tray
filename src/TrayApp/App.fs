@@ -268,13 +268,14 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
                 quitItem
             }
 
-    override _.Initialize() = this.Styles.Add(FluentTheme())
+    override _.Initialize() =
+        this.Styles.Add(FluentTheme())
 
-    override _.OnFrameworkInitializationCompleted() =
 #if DEBUG
-        if Debugger.IsAttached then this.AttachDevTools()
+        this.AttachDeveloperTools() |> ignore
 #endif
 
+    override _.OnFrameworkInitializationCompleted() =
         match this.ApplicationLifetime with
         | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
             // Make shut down explicit, Don't shut down when closing the main window
