@@ -226,8 +226,8 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
 
     /// One time function to populate the persistent tray menu items
     member private _.InitializePersistentMenuItems(desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
-        let aboutItem = NativeMenuItem(Header = "About")
-        aboutItem.Click.Add(fun _ -> toggleMainWindow ())
+        let toggleItem = NativeMenuItem(Header = "Show/Hide Main Window")
+        toggleItem.Click.Add(fun _ -> toggleMainWindow ())
 
         let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
         openLogsMenu.Click.Add(openLogsDir)
@@ -264,7 +264,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
                 NativeMenuItemSeparator()
                 reInitializeMenu
                 refreshItem
-                aboutItem
+                toggleItem
                 quitItem
             }
 
