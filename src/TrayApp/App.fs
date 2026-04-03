@@ -77,6 +77,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
     let toggleMainWindow () =
         match mainWindow with
         | None ->
+            Log.Error("MainWindow is None")
             sendBugNotification "Null MainWindow"
             showErrorMessage "App Error" "MainWindow is null, please restart the application"
         | Some w when w.IsVisible |> not ->
@@ -153,6 +154,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
                                     | Paused p -> { state with Paused = p }
                                     | NewBindingModes cb -> { state with CustomBinding = cb }
                                     | UnSuccessfulResponse msg ->
+                                        Log.Error("Unsuccessful Response: {Message}", msg)
                                         mainWindow
                                         |> Option.tryDo "mainWindow" (fun w ->
                                             w.Notify(
@@ -247,6 +249,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         quitItem.Click.Add(fun _ -> desktopLifetime.Shutdown(0))
 
         reInitializeMenu.Click.Add(fun _ ->
+            Log.Information("Reinitializing GlazeWM Connection")
             mainWindow
             |> Option.tryDo "mainWindow" (fun w ->
                 w.Notify("Reinitializing GlazeWM Connection", "Attempting to reconnect..."))

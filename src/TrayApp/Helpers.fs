@@ -22,14 +22,9 @@ module Notifications =
         with ex ->
             Log.Error(ex, $"Failed to open uri: {uri}")
 
-    /// Send Windows toast basic notification
-    let sendNotification title body =
-        // ToastContentBuilder().AddText(title).AddText(body).Show()
-        Log.Warning $"Notification title: {title}, body: {body}"
-
     let sendBugNotification bug =
+        Log.Error($"Bug: {bug}")
         let title = "You encountered a bug!"
-
         let body =
             $"Please report the bug and specify the reason ({bug}). \
               You can also attach log.txt from the logs directory. \
