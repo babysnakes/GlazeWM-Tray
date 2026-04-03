@@ -5,7 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Xml.Linq;
 
-var rid = args.Length > 0 ? args[0] : "win-x64";
+var rid = args[0];
 var repoRoot = Directory.GetCurrentDirectory();
 
 // Read version from Directory.Build.props

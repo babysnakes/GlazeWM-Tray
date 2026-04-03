@@ -37,3 +37,24 @@ await Magick(["generated/error_16.png", "generated/error_32.png", "generated/err
 var assetsDir = Path.Combine("..", "src", "TrayApp", "Assets");
 foreach (var f in Directory.GetFiles("generated", "*.ico"))
     File.Move(f, Path.Combine(assetsDir, Path.GetFileName(f)));
+
+// Populate macOS iconset for iconutil
+var iconsetDir = Path.Combine("macos", "icon.iconset");
+Directory.CreateDirectory(iconsetDir);
+
+var iconsetFiles = new (string src, string dest)[]
+{
+    ("icon_16.png",   "icon_16x16.png"),
+    ("icon_32.png",   "icon_16x16@2x.png"),
+    ("icon_32.png",   "icon_32x32.png"),
+    ("icon_64.png",   "icon_32x32@2x.png"),
+    ("icon_128.png",  "icon_128x128.png"),
+    ("icon_256.png",  "icon_128x128@2x.png"),
+    ("icon_256.png",  "icon_256x256.png"),
+    ("icon_512.png",  "icon_256x256@2x.png"),
+    ("icon_512.png",  "icon_512x512.png"),
+    ("icon_1024.png", "icon_512x512@2x.png"),
+};
+
+foreach (var (src, dest) in iconsetFiles)
+    File.Copy(Path.Combine("generated", src), Path.Combine(iconsetDir, dest), overwrite: true);

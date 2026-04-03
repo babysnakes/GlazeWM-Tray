@@ -1,5 +1,3 @@
-defaultRID := 'win-x64'
-
 [doc('Run console against running GlazeWM')]
 [working-directory('src/cli/')]
 cli:
@@ -28,7 +26,6 @@ vtest:
 [doc('Restore from scratch honering the lock file')]
 restore:
     dotnet tool restore
-    dotnet restore
 
 [doc('Run CI checks and tests')]
 ci: restore check
@@ -39,9 +36,20 @@ ci: restore check
 icons:
     dotnet run resources/scripts/gen-icons.cs
 
-[doc("Package the applicationm for distribution")]
-package rid=defaultRID:
-    dotnet run resources/scripts/package.cs -- {{ rid }}
+[windows]
+[doc("Package the application for distribution")]
+package rid='win-x64':
+    dotnet run resources/scripts/package-windows.cs -- {{ rid }}
 
+[macos]
+[doc("Package the application for distribution")]
+package rid='osx-arm64':
+    dotnet run resources/scripts/package-macos.cs -- {{ rid }}
+
+[windows]
 [doc("Distribute all supported architectures")]
 dist: (package "win-x64") (package "win-arm64")
+
+[macos]
+[doc("Distribute all supported architectures")]
+dist: (package "osx-arm64") (package "osx-x64")
