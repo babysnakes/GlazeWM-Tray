@@ -33,7 +33,13 @@ module Program =
 
     [<CompiledName "BuildAvaloniaApp">]
     let buildAvaloniaApp () =
-        AppBuilder.Configure<App>(fun _ -> mkApp ()).LogToTrace().UsePlatformDetect().UseSkia().WithInterFont()
+        AppBuilder
+            .Configure<App>(fun _ -> mkApp ())
+            .LogToTrace()
+            .UsePlatformDetect()
+            .UseSkia()
+            .WithInterFont()
+            .With(MacOSPlatformOptions(ShowInDock = false))
 
     [<EntryPoint; STAThread>]
     let main (args: string[]) =

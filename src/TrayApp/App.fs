@@ -32,7 +32,8 @@ module Assets =
         [ for id in ids do
               for theme in themes -> $"icon-{id}-{theme}" ]
         |> List.append [ "icon"; "error" ]
-        |> List.map (fun name -> name, WindowIcon(System.IO.Path.Combine("Assets", $"{name}.ico")))
+        |> List.map (fun name ->
+            name, WindowIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", $"{name}.ico")))
         |> Map.ofList
 
 type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
