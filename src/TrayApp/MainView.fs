@@ -1,4 +1,4 @@
-﻿module GlazeWM.TrayApp.Views
+﻿namespace GlazeWM.TrayApp.Views
 
 open System
 open Avalonia.Controls
@@ -6,41 +6,28 @@ open Avalonia.Controls.Notifications
 open Avalonia.FuncUI.Hosts
 open Avalonia.FuncUI
 open Avalonia.FuncUI.DSL
+open Avalonia.FuncUI.Types
 open Avalonia.Layout
-open System.Reflection
 
 module Main =
-    let version =
-        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-        |> Option.ofObj
-        |> Option.map (fun a -> a.InformationalVersion.Split('+')[0])
-        |> Option.defaultValue "0.0-error"
+    let tabs: IView list =
+        [ TabItem.create [ TabItem.header "Query"; TabItem.content QueryPanel.contents ]
+          TabItem.create [ TabItem.header "About"; TabItem.content AboutPanel.contents ] ]
 
     let view () =
         Component(fun _ ->
             DockPanel.create
                 [ DockPanel.children
-                      [ // Footer text docked to the bottom
-                        TextBlock.create
+                      [ TextBlock.create
                             [ DockPanel.dock Dock.Bottom
                               TextBlock.margin (0.0, 0.0, 0.0, 20.0)
                               TextBlock.fontSize 12.0
                               TextBlock.horizontalAlignment HorizontalAlignment.Center
                               TextBlock.opacity 0.5
-                              TextBlock.text "To close: ESC or ENTER or CTRL+W" ]
+                              TextBlock.text "To close: CTRL+W" ]
+                        TabControl.create [ TabControl.viewItems tabs ] ]
 
-                        StackPanel.create
-                            [ StackPanel.verticalAlignment VerticalAlignment.Center
-                              StackPanel.children
-                                  [ TextBlock.create
-                                        [ TextBlock.fontSize 48.0
-                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                          TextBlock.text "GlazeWM Tray" ]
-                                    TextBlock.create
-                                        [ TextBlock.fontSize 18.0
-                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                          TextBlock.opacity 0.6
-                                          TextBlock.text $"Version {version}" ] ] ] ] ])
+                  ])
 
 
 type MainWindow() as this =
@@ -71,9 +58,7 @@ type MainWindow() as this =
         let isCtrlW =
             e.Key = Avalonia.Input.Key.W
             && e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control)
-
-        if e.Key = Avalonia.Input.Key.Escape || e.Key = Avalonia.Input.Key.Enter || isCtrlW then
-            this.Close()
+        if isCtrlW then this.Close()
 
     override this.OnClosing(e: WindowClosingEventArgs) =
         this.Hide()

@@ -8,6 +8,7 @@ open Avalonia.Controls.ApplicationLifetimes
 open Avalonia.Controls.Notifications
 open Avalonia.Styling
 open Avalonia.Themes.Fluent
+open Huskui.Avalonia
 open Serilog
 open Serilog.Core
 open GlazeWM.Tray.Literals
@@ -274,6 +275,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
 
     override _.Initialize() =
         this.Styles.Add(FluentTheme())
+        this.Styles.Add(HuskuiTheme())
 
 #if DEBUG
         this.AttachDeveloperTools() |> ignore
