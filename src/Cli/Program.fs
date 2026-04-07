@@ -1,5 +1,6 @@
 ﻿// For more information see https://aka.ms/fsharp-console-apps
 open System
+open System.Threading
 open GlazeWM.Tray.Literals
 open Serilog
 open Serilog.Core
@@ -54,7 +55,14 @@ client.Error.Add(fun msg ->
 
 parser.Error.Add(fun msg -> Log.Error("Error occurred in message parser: {Message}", msg))
 
-printfn "Type debug/info to set log level, exit to quit, any other input to send to GlazeWM"
+printfn
+    "Type debug/info to set log level, \
+         exit to quit, \
+         !<query> to send a query with a single response synchronously, \
+         any other input to send to GlazeWM"
+
+let (|Query|_|) (s: string) =
+    if s.StartsWith('!') then Some s[1..] else None
 
 [<TailCall>]
 let rec ReadAndSendLoop () =
@@ -67,6 +75,12 @@ let rec ReadAndSendLoop () =
         ReadAndSendLoop()
     | "info" ->
         levelSwitch.MinimumLevel <- LogEventLevel.Information
+        ReadAndSendLoop()
+    | Query q ->
+        client.Query q
+        |> function
+            | Ok r -> Log.Information("Response: {Message}", r)
+            | Error e -> Log.Error("Error occurred: {Message}", e)
         ReadAndSendLoop()
     | _ ->
         client.Agent.Post(SendMessage input)

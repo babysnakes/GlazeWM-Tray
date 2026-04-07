@@ -1,48 +1,53 @@
-module GlazeWM.Tray.WebSocketClient
+namespace GlazeWM.Tray.WebSocketClient
 
 open System
 open System.Net.WebSockets
 open System.Text
 open System.Threading
 open Serilog
-open GlazeWM.Tray.Literals
 
 
 type WebSocketMessage =
     | SendMessage of string
     | Exit of AsyncReplyChannel<unit>
 
+type SyncMessage = SyncQuery of string * AsyncReplyChannel<Result<string, string>>
+
 type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
 
     let client = new ClientWebSocket()
+    let syncClient = new ClientWebSocket()
     let cts = new CancellationTokenSource()
     let errorEvent = Event<string>()
 
+    let readMessage (socket: ClientWebSocket) =
+        async {
+            let buffer = Array.zeroCreate<byte> 1024
+            let sb = StringBuilder()
+            let mutable lastResult = Unchecked.defaultof<WebSocketReceiveResult>
+            let mutable receiving = true
+
+            while receiving do
+                let! result = Async.AwaitTask(socket.ReceiveAsync(ArraySegment<byte>(buffer), cts.Token))
+
+                lastResult <- result
+                sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count)) |> ignore
+                receiving <- not result.EndOfMessage
+
+            return lastResult, sb.ToString()
+        }
+
     let listen () =
         async {
-            let mutable buffer = Array.zeroCreate<byte> 1024
-
             while not cts.IsCancellationRequested do
                 try
-                    let messageBuilder = StringBuilder()
-                    let mutable result = Unchecked.defaultof<WebSocketReceiveResult>
-                    let mutable receiving = true
-
-                    while receiving do
-                        let! currentResult = Async.AwaitTask(client.ReceiveAsync(ArraySegment<byte>(buffer), cts.Token))
-
-                        result <- currentResult
-                        let chunk = Encoding.UTF8.GetString(buffer, 0, currentResult.Count)
-                        messageBuilder.Append(chunk) |> ignore
-                        receiving <- not currentResult.EndOfMessage
-
+                    let! result, jsonString = readMessage client
 
                     if result.MessageType = WebSocketMessageType.Close then
                         Log.Warning "GlazeWM closed the connection."
                         errorEvent.Trigger("GlazeWM closed the connection.")
                         cts.Cancel()
                     else
-                        let jsonString = messageBuilder.ToString()
                         parser.Post(jsonString)
 
                 with
@@ -108,10 +113,68 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
         a.Error.Add(fun ex -> errorEvent.Trigger(ex.Message))
         a
 
+    let syncAgent =
+        let a =
+            MailboxProcessor.Start(
+                (fun inbox ->
+                    async {
+                        do! Async.AwaitTask(syncClient.ConnectAsync(uri, cts.Token))
+
+                        let rec loop () =
+                            async {
+                                let! (SyncQuery(query, reply)) = inbox.Receive()
+
+                                try
+                                    let bytes = Encoding.UTF8.GetBytes(query)
+
+                                    do!
+                                        Async.AwaitTask(
+                                            syncClient.SendAsync(
+                                                ArraySegment<byte>(bytes),
+                                                WebSocketMessageType.Text,
+                                                true,
+                                                cts.Token
+                                            )
+                                        )
+
+                                    let! _, response = readMessage syncClient
+                                    reply.Reply(Ok response)
+                                    return! loop ()
+                                with
+                                | :? OperationCanceledException as ex ->
+                                    reply.Reply(Error "Sync client Cancelled")
+                                    raise ex
+                                | ex ->
+                                    Log.Error("Sync query error: {Ex}", ex)
+                                    errorEvent.Trigger(ex.Message)
+                                    reply.Reply(Error ex.Message)
+                                    cts.Cancel()
+                            }
+
+                        do! loop ()
+                    }),
+                cancellationToken = cts.Token
+            )
+
+        a.Error.Add(fun ex -> errorEvent.Trigger(ex.Message))
+        a
+
     member _.Agent = agent
 
     /// Subscribe to GlazeWM events
     member _.SendMessage(msg: string) = SendMessage msg |> agent.Post
+
+    /// Send a query and synchronously wait for a single response. Optionally provide timeout in milliseconds
+    /// (default is 5000ms).
+    member _.Query(message: string, ?timeoutMs: int) : Result<string, string> =
+        let timeout = defaultArg timeoutMs 5000
+        try
+            syncAgent.PostAndReply((fun reply -> SyncQuery(message, reply)), timeout)
+        with :? TimeoutException ->
+            let msg = $"Sync query timeout (after {timeout}ms)"
+            cts.Cancel()
+            errorEvent.Trigger(msg)
+            Error msg
 
     [<CLIEvent>]
     member this.Error = errorEvent.Publish
@@ -124,4 +187,5 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
                 ()
 
             client.Dispose()
+            syncClient.Dispose()
             cts.Dispose()
