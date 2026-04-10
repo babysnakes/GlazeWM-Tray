@@ -138,6 +138,7 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
                                         )
 
                                     let! _, response = readMessage syncClient
+                                    Log.Debug("Sync query: query='{Query}', response='{Response}'", query, response)
                                     reply.Reply(Ok response)
                                     return! loop ()
                                 with
