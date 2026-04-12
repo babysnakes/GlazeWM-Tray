@@ -9,9 +9,15 @@ open Avalonia.FuncUI.DSL
 open Avalonia.FuncUI.Types
 open Avalonia.Layout
 
-module Main =
+type MainWindow(syncQueryF: string -> Result<string, string>) as this =
+    inherit HostWindow()
+
+    let notificationManager = WindowNotificationManager(this, MaxItems = 3)
+    let pending = System.Collections.Generic.Queue<Notification>()
+    let mutable initialized = false
+
     let tabs: IView list =
-        [ TabItem.create [ TabItem.header "Query"; TabItem.content QueryPanel.contents ]
+        [ TabItem.create [ TabItem.header "Query"; TabItem.content (QueryPanel.view syncQueryF) ]
           TabItem.create [ TabItem.header "About"; TabItem.content AboutPanel.contents ] ]
 
     let view () =
@@ -29,19 +35,11 @@ module Main =
 
                   ])
 
-
-type MainWindow() as this =
-    inherit HostWindow()
-
-    let notificationManager = WindowNotificationManager(this, MaxItems = 3)
-    let pending = System.Collections.Generic.Queue<Notification>()
-    let mutable initialized = false
-
     do
         base.Title <- "GlazeWM Tray"
         base.Width <- 600
         base.Height <- 400
-        base.Content <- Main.view ()
+        base.Content <- view ()
 
     member _.Notify(title, body, ?tpe) =
         let t = defaultArg tpe NotificationType.Information

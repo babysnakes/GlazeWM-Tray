@@ -21,7 +21,7 @@ let workspacesNoFocus = readFixture "basic-workspaces-response-with-no-focus.jso
 let unsuccessfulResponse = readFixture "error-response-without-error.json"
 
 let run () =
-    let localServer = new WebSocketServer("ws://0.0.0.0:8181")
+    let localServer = new WebSocketServer("ws://0.0.0.0:6123")
 
     localServer.Start(fun socket ->
         socket.OnOpen <-

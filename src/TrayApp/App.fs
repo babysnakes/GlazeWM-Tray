@@ -60,6 +60,11 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
           CustomBinding = false
           Refresh = false }
 
+    let runSyncQuery (query: string) =
+        match wsClient with
+        | Some c -> c.Query(query)
+        | None -> Error "BUG: No websocket client set"
+
     /// logic for matching state to icon
     let matchStateToIcon (state: TrayIconState) =
         let isDarkTheme = this.ActualThemeVariant = ThemeVariant.Dark
@@ -290,7 +295,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
             tray.Menu <- NativeMenu()
             this.InitializePersistentMenuItems(desktopLifetime)
             this.UpdateTrayMenu []
-            let w = MainWindow()
+            let w = MainWindow runSyncQuery
             mainWindow <- Some w
             tray.Clicked.Add(fun _ -> toggleMainWindow ())
             let app_icon = statusIcons |> Map.find "icon"
