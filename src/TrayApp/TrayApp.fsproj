@@ -39,6 +39,6 @@
     <PackageReference Include="MessageBox.Avalonia" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />
-    <PackageReference Include="Tmds.DBus.Protocol" /> <!-- should be removed after upgrading avalonia -->
+    <PackageReference Include="Tmds.DBus.Protocol" /> <!-- Tmds.DBus.Protocol CVE pin; transitive via Avalonia for Linux -->
   </ItemGroup>
 </Project>
