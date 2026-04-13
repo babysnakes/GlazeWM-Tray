@@ -15,6 +15,7 @@ open GlazeWM.Tray.Literals
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.Models
 open GlazeWM.Tray.WebSocketClient
+open GlazeWM.TrayApp
 open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
 open GlazeWM.TrayApp.Views
@@ -281,6 +282,7 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
     override _.Initialize() =
         this.Styles.Add(FluentTheme())
         this.Styles.Add(HuskuiTheme())
+        this.Styles.Add(AppStyles())
 
 #if DEBUG
         this.AttachDeveloperTools() |> ignore

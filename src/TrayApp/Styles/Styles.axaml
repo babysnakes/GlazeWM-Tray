@@ -1,0 +1,18 @@
+<!-- ReSharper disable Xaml.ConstructorWarning -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GlazeWM.TrayApp.AppStyles">
+    <Styles.Resources>
+        <ResourceDictionary>
+            <!-- Wider scrollbar -->
+            <x:Double x:Key="ScrollBarThickness">12</x:Double>
+            <ResourceDictionary.ThemeDictionaries>
+                <!-- Fix invisible scrollbar thumb in Huskui dark theme: SmokeColor maps to
+                     #80000000 in both themes, which is invisible on dark backgrounds -->
+                <ResourceDictionary x:Key="Dark">
+                    <Color x:Key="SmokeColor">#99FFFFFF</Color>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Styles.Resources>
+</Styles>

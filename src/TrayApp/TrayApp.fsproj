@@ -18,6 +18,7 @@
     <Compile Include="AboutPanel.fs" />
     <Compile Include="QueryPanel.fs" />
     <Compile Include="MainView.fs" />
+    <Compile Include="Styles\AppStyles.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
     <Content Include="Assets\*.ico">
