@@ -105,6 +105,7 @@ module QueryPanel =
             let queryInput =
                 StackPanel.create
                     [ DockPanel.dock Dock.Bottom
+                      DockPanel.margin (0.0, 8.0, 0.0, 0.0)
                       StackPanel.horizontalAlignment HorizontalAlignment.Center
                       StackPanel.width 420.0
                       StackPanel.orientation Orientation.Horizontal
@@ -116,7 +117,14 @@ module QueryPanel =
                                   TextBox.watermark "Enter query..." ]
                             Button.create
                                 [ Button.content "Query"
+                                  Button.isEnabled (not <| System.String.IsNullOrWhiteSpace queryInput.Current)
                                   Button.onClick (fun _ -> query.Set queryInput.Current) ] ] ]
 
             DockPanel.create
-                [ DockPanel.children [ queryInput; ScrollViewer.create [ ScrollViewer.content (responseView ()) ] ] ])
+                [ DockPanel.children [
+                    queryInput
+                    ScrollViewer.create [
+                        ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                        ScrollViewer.content (responseView ())
+                    ]
+                ] ])

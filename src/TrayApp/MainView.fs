@@ -31,7 +31,10 @@ type MainWindow(syncQueryF: string -> Result<string, string>) as this =
                               TextBlock.horizontalAlignment HorizontalAlignment.Center
                               TextBlock.opacity 0.5
                               TextBlock.text "To close: CTRL+W" ]
-                        TabControl.create [ TabControl.viewItems tabs ] ]
+                        TabControl.create [
+                            TabControl.margin (5.0, 5.0, 5.0, 5.0)
+                            TabControl.viewItems tabs
+                        ] ]
 
                   ])
 
