@@ -1,23 +1,61 @@
-﻿namespace FSharpReactiveUI
+namespace FSharpReactiveUI
 
 open System
+open System.IO
 open Avalonia
 open ReactiveUI.Avalonia
+open Serilog
+open Serilog.Core
+open Serilog.Events
 
 module Program =
 
-    [<CompiledName "BuildAvaloniaApp">] 
-    let buildAvaloniaApp () = 
+    let mkApp () =
+        let logDir =
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "GlazeWM-Tray",
+                "logs"
+            )
+
+        if not <| Directory.Exists(logDir) then
+            Directory.CreateDirectory(logDir) |> ignore
+
+        let levelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
+
+#if DEBUG
+        Log.Logger <-
+            LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).WriteTo.Console().CreateLogger()
+#else
+        let logPath = Path.Combine(logDir, "log.txt")
+
+        Log.Logger <-
+            LoggerConfiguration()
+                .MinimumLevel.ControlledBy(levelSwitch)
+                .WriteTo.File(logPath, fileSizeLimitBytes = 100_000, retainedFileCountLimit = 10)
+                .CreateLogger()
+#endif
+
+        App(levelSwitch, logDir)
+
+    [<CompiledName "BuildAvaloniaApp">]
+    let buildAvaloniaApp () =
         AppBuilder
-            .Configure<App>()
+            .Configure<App>(fun _ -> mkApp ())
             .UsePlatformDetect()
             .WithInterFont()
+            .UseReactiveUI()
 #if DEBUG
             .WithDeveloperTools()
 #endif
             .LogToTrace(areas = Array.empty)
-            .UseReactiveUI()
+            .With(MacOSPlatformOptions(ShowInDock = false))
 
     [<EntryPoint; STAThread>]
-    let main argv =
-        buildAvaloniaApp().StartWithClassicDesktopLifetime(argv)
+    let main (args: string[]) =
+        AppDomain.CurrentDomain.UnhandledException.Add(fun e ->
+            let ex = (e.ExceptionObject :?> Exception)
+            Log.Fatal(ex, "Unhandled exception causing crash")
+            Log.CloseAndFlush())
+
+        buildAvaloniaApp().StartWithClassicDesktopLifetime(args)

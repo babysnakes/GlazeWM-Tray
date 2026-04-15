@@ -1,6 +1,15 @@
-﻿namespace FSharpReactiveUI.ViewModels
+namespace FSharpReactiveUI.ViewModels
 
-type MainWindowViewModel() =
+open System.Reflection
+
+type MainWindowViewModel(queryFunc: string -> Result<string, string>) =
     inherit ViewModelBase()
 
-    member this.Greeting = "Welcome to Avalonia!"
+    let version =
+        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+        |> Option.ofObj
+        |> Option.map (fun a -> a.InformationalVersion.Split('+')[0])
+        |> Option.defaultValue "0.0-error"
+
+    member val QueryPanel = QueryPanelViewModel(queryFunc)
+    member _.VersionDisplay = $"Version {version}"

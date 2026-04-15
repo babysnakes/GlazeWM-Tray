@@ -55,6 +55,16 @@
           "Microsoft.IO.RecyclableMemoryStream": "3.0.1"
         }
       },
+      "MessageBox.Avalonia": {
+        "type": "Direct",
+        "requested": "[3.3.1.1, )",
+        "resolved": "3.3.1.1",
+        "contentHash": "a0NocLvE0ipg0REevrMtilNI+ud+tFTJW7YrPtploeM93ew8S3Y6hEybqZ7W9q5Yqa9u+xOrOjAlG1lTihWhnQ==",
+        "dependencies": {
+          "Avalonia": "11.1.5",
+          "DialogHost.Avalonia": "0.8.1"
+        }
+      },
       "ReactiveUI.Avalonia": {
         "type": "Direct",
         "requested": "[11.3.8, )",
@@ -64,6 +74,24 @@
           "Avalonia": "11.3.8",
           "ReactiveUI": "22.2.1",
           "Splat": "17.1.1"
+        }
+      },
+      "Serilog.Sinks.Console": {
+        "type": "Direct",
+        "requested": "[6.1.1, )",
+        "resolved": "6.1.1",
+        "contentHash": "8jbqgjUyZlfCuSTaJk6lOca465OndqOz3KZP6Cryt/IqZYybyBu7GP0fE/AXBzrrQB3EBmQntBFAvMVz1COvAA==",
+        "dependencies": {
+          "Serilog": "4.0.0"
+        }
+      },
+      "Serilog.Sinks.File": {
+        "type": "Direct",
+        "requested": "[7.0.0, )",
+        "resolved": "7.0.0",
+        "contentHash": "fKL7mXv7qaiNBUC71ssvn/dU0k9t0o45+qm2XgKAlSt19xF+ijjxyA3R6HmCgfKEKwfcfkwWjayuQtRueZFkYw==",
+        "dependencies": {
+          "Serilog": "4.2.0"
         }
       },
       "Avalonia.Angle.Windows.Natives": {
@@ -129,6 +157,14 @@
           "Avalonia": "11.3.13",
           "Avalonia.FreeDesktop": "11.3.13",
           "Avalonia.Skia": "11.3.13"
+        }
+      },
+      "DialogHost.Avalonia": {
+        "type": "Transitive",
+        "resolved": "0.8.1",
+        "contentHash": "RLBOMqjJPgSmwe0i1pzX3Q7Pn0i4xE/E1b774krd4VyEkaorz1AYMdYQHyIfuhtQv5NntZyS0MuQbxJl/PhzBg==",
+        "dependencies": {
+          "Avalonia": "11.1.0"
         }
       },
       "DynamicData": {

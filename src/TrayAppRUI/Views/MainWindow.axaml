@@ -1,20 +1,42 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:FSharpReactiveUI.ViewModels"
+        xmlns:v="using:FSharpReactiveUI.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
         x:Class="FSharpReactiveUI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="FSharpReactiveUI">
+        Title="GlazeWM Tray"
+        Width="600" Height="400">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.fs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <DockPanel>
+        <TextBlock DockPanel.Dock="Bottom"
+                   Margin="0,0,0,20"
+                   FontSize="12"
+                   HorizontalAlignment="Center"
+                   Opacity="0.5"
+                   Text="To close: CTRL+W"/>
 
+        <TabControl Margin="5">
+            <TabItem Header="Query">
+                <v:QueryPanelView DataContext="{Binding QueryPanel}"/>
+            </TabItem>
+            <TabItem Header="About">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock FontSize="48"
+                               HorizontalAlignment="Center"
+                               Text="GlazeWM Tray"/>
+                    <TextBlock FontSize="18"
+                               HorizontalAlignment="Center"
+                               Opacity="0.6"
+                               Text="{Binding VersionDisplay}"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
 </Window>
