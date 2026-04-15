@@ -43,68 +43,54 @@ type QueryPanelViewModel(queryFunc: string -> Result<string, string>) as this =
     inherit ViewModelBase()
 
     let mutable _queryInput = ""
-    let mutable _isEmpty = true
-    let mutable _isQuerying = false
-    let mutable _isError = false
-    let mutable _isData = false
-    let mutable _errorMessage = ""
-    let mutable _treeItems: JsonTreeNode list = []
+    let mutable _state: QueryState = Empty
 
     member this.QueryInput
         with get() = _queryInput
         and set v = this.RaiseAndSetIfChanged(&_queryInput, v) |> ignore
 
-    member this.IsEmpty
-        with get() = _isEmpty
-        and set v = this.RaiseAndSetIfChanged(&_isEmpty, v) |> ignore
+    member private this.State
+        with set v =
+            _state <- v
+            this.RaisePropertyChanged(nameof this.IsEmpty)
+            this.RaisePropertyChanged(nameof this.IsQuerying)
+            this.RaisePropertyChanged(nameof this.IsError)
+            this.RaisePropertyChanged(nameof this.IsData)
+            this.RaisePropertyChanged(nameof this.ErrorMessage)
+            this.RaisePropertyChanged(nameof this.TreeItems)
 
-    member this.IsQuerying
-        with get() = _isQuerying
-        and set v = this.RaiseAndSetIfChanged(&_isQuerying, v) |> ignore
+    member _.IsEmpty    = _state = Empty
+    member _.IsQuerying = _state = Querying
+    member _.IsError    = match _state with ErrorMsg _     -> true | _ -> false
+    member _.IsData     = match _state with ResponseData _ -> true | _ -> false
 
-    member this.IsError
-        with get() = _isError
-        and set v = this.RaiseAndSetIfChanged(&_isError, v) |> ignore
+    member _.ErrorMessage =
+        match _state with
+        | ErrorMsg e -> e
+        | _ -> ""
 
-    member this.IsData
-        with get() = _isData
-        and set v = this.RaiseAndSetIfChanged(&_isData, v) |> ignore
-
-    member this.ErrorMessage
-        with get() = _errorMessage
-        and set v = this.RaiseAndSetIfChanged(&_errorMessage, v) |> ignore
-
-    member this.TreeItems
-        with get() = _treeItems
-        and set v = this.RaiseAndSetIfChanged(&_treeItems, v) |> ignore
-
-    member private this.SetState(state: QueryState) =
-        this.IsEmpty <- (state = Empty)
-        this.IsQuerying <- (state = Querying)
-        this.IsError <- (match state with | ErrorMsg _ -> true | _ -> false)
-        this.IsData <- (match state with | ResponseData _ -> true | _ -> false)
-
-        match state with
-        | ErrorMsg e -> this.ErrorMessage <- e
-        | ResponseData r -> this.TreeItems <- [ JsonTreeNode("data", r) ]
-        | _ -> ()
+    member _.TreeItems =
+        match _state with
+        | ResponseData r -> [ JsonTreeNode("data", r) ]
+        | _ -> []
 
     member private this.RunQuery() =
         let queryText = this.QueryInput.Trim()
 
         if not (String.IsNullOrWhiteSpace queryText) then
             Log.Information("Query: {Query}", queryText)
-            this.SetState Querying
+            this.State <- Querying
 
             async {
                 let result =
                     queryFunc queryText >>= CustomParsers.tryExtractResponseData
 
                 Avalonia.Threading.Dispatcher.UIThread.Post(fun () ->
-                    match result with
-                    | Ok(GlazeWMRawResponse.Data r) -> this.SetState(ResponseData r)
-                    | Ok(GlazeWMRawResponse.ErrorMsg e) -> this.SetState(ErrorMsg e)
-                    | Error e -> this.SetState(ErrorMsg e))
+                    this.State <-
+                        match result with
+                        | Ok(Data r)                        -> ResponseData r
+                        | Ok(GlazeWMRawResponse.ErrorMsg e) -> ErrorMsg e
+                        | Error e                           -> ErrorMsg e)
             }
             |> Async.Start
 
