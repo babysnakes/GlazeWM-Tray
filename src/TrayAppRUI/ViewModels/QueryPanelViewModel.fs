@@ -2,6 +2,7 @@ namespace FSharpReactiveUI.ViewModels
 
 open System
 open System.Reactive
+open System.Reactive.Linq
 open ReactiveUI
 open FSharp.Data
 open FsToolkit.ErrorHandling.Operator.Result
@@ -95,4 +96,9 @@ type QueryPanelViewModel(queryFunc: string -> Result<string, string>) as this =
             |> Async.Start
 
     member val ExecuteQueryCommand: ReactiveCommand<Unit, Unit> =
-        ReactiveCommand.Create(Action(fun () -> this.RunQuery()))
+        ReactiveCommand.Create(
+            Action(fun () -> this.RunQuery()),
+            this.Changed
+                .Where(fun e -> e.PropertyName = "QueryInput")
+                .Select(fun _ -> not (String.IsNullOrWhiteSpace this.QueryInput))
+                .StartWith(false))
