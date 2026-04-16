@@ -221,7 +221,8 @@
           "FSharp.Data": "[8.1.7, )",
           "Farse": "[0.8.0, )",
           "FsToolkit.ErrorHandling": "[5.2.0, )",
-          "Serilog": "[4.3.1, )"
+          "Serilog": "[4.3.1, )",
+          "System.Reactive": "[6.1.0, )"
         }
       },
       "Farse": {
@@ -263,6 +264,12 @@
         "requested": "[4.3.1, )",
         "resolved": "4.3.1",
         "contentHash": "savYe7h5yRlkqBVOwP8cIRDOdqKiPmYCU4W87JH38sBmcKD5EBoXvQIw6bNEvZ/pTe1gsiye3VFCzBsoppGkXQ=="
+      },
+      "System.Reactive": {
+        "type": "CentralTransitive",
+        "requested": "[6.1.0, )",
+        "resolved": "6.1.0",
+        "contentHash": "M5cCC1ZMkZr9jbSQGTHnVkb5TDN67qWCV7AP8TAHdGkvDlu0puT5NzemESNn9+HkYIDpWpocP68/i+/ame2/2w=="
       }
     }
   }
