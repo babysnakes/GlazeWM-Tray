@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GlazeWM.TrayAppCS.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="GlazeWM.TrayAppCS.Views.QueryPanelView"
+             x:DataType="vm:QueryPanelViewModel">
+
+    <DockPanel>
+        <!-- Input row pinned to the bottom -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="0,8,0,0">
+            <TextBox MinWidth="340"
+                     Text="{Binding QueryInput}"
+                     Watermark="Enter query..."/>
+            <Button Content="Query"
+                    Margin="4,0,0,0"
+                    Command="{Binding ExecuteQueryCommand}"/>
+        </StackPanel>
+
+        <!-- Response area: one DataTemplate per QueryState subtype.
+             ContentControl selects the matching template automatically.
+             No IsVisible flags — no illegal state is representable. -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto">
+            <ContentControl Content="{Binding State}">
+                <ContentControl.DataTemplates>
+
+                    <DataTemplate DataType="vm:QueryStateEmpty">
+                        <TextBlock Text="Please enter a query." VerticalAlignment="Center"/>
+                    </DataTemplate>
+
+                    <DataTemplate DataType="vm:QueryStateQuerying">
+                        <TextBlock Text="Waiting for response..." VerticalAlignment="Center"/>
+                    </DataTemplate>
+
+                    <DataTemplate DataType="vm:QueryStateError" x:DataType="vm:QueryStateError">
+                        <TextBlock Text="{Binding Message}" Foreground="Red" TextWrapping="Wrap"/>
+                    </DataTemplate>
+
+                    <DataTemplate DataType="vm:QueryStateData" x:DataType="vm:QueryStateData">
+                        <TreeView ItemsSource="{Binding Root.Children}">
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate x:DataType="vm:JsonTreeNode"
+                                                  ItemsSource="{Binding Children}">
+                                    <TextBlock Text="{Binding Header}"/>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DataTemplate>
+
+                </ContentControl.DataTemplates>
+            </ContentControl>
+        </ScrollViewer>
+    </DockPanel>
+
+</UserControl>
