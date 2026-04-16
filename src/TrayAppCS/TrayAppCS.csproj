@@ -35,7 +35,6 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="ReactiveUI.Avalonia" />
-    <PackageReference Include="ReactiveUI.SourceGenerators" />
     <PackageReference Include="MessageBox.Avalonia" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />

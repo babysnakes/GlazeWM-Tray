@@ -1,30 +1,18 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reactive.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.FSharp.Core;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace GlazeWM.TrayAppCS.ViewModels;
 
-// ── Query state ──────────────────────────────────────────────────────────────
-// Sealed record hierarchy: the view binds a single State object and routes to
-// the appropriate DataTemplate. No combination of IsEmpty/IsError/IsData flags
-// can represent a contradictory state.
-
+// Possible states to be used in the query panel
 public abstract record QueryState;
 public sealed record QueryStateEmpty : QueryState;
 public sealed record QueryStateQuerying : QueryState;
 public sealed record QueryStateError(string Message) : QueryState;
 public sealed record QueryStateData(JsonTreeNode Root) : QueryState;
 
-// ── JSON tree node ────────────────────────────────────────────────────────────
-// Pure immutable tree built from a JsonElement. No ReactiveObject machinery
-// needed — it is constructed once and never mutated.
-
+// JSON construct to use with TreeView
 public sealed class JsonTreeNode
 {
     public string Header { get; }
@@ -62,29 +50,24 @@ public sealed class JsonTreeNode
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
-public partial class QueryPanelViewModel : ReactiveObject
+public class QueryPanelViewModel : ReactiveObject
 {
     private readonly Func<string, FSharpResult<string, string>> _queryFunc;
 
-    // [Reactive] generates the backing field + RaiseAndSetIfChanged accessor.
-    [Reactive]
-    public partial string QueryInput { get; set; }
+    public string QueryInput
+    {
+        get;
+        set => this.RaiseAndSetIfChanged(ref field, value);
+    } = "";
 
-    // [ObservableAsProperty] generates the ObservableAsPropertyHelper field + getter.
-    // The constructor wires up the observable via _stateHelper = ...ToProperty(this, x => x.State).
-    [ObservableAsProperty]
-    public partial QueryState State { get; }
+    private readonly ObservableAsPropertyHelper<QueryState> _stateHelper;
+    public QueryState State => _stateHelper.Value;
 
     public ReactiveCommand<System.Reactive.Unit, QueryState> ExecuteQueryCommand { get; }
 
-    // CS8618: _state is a generated backing field updated lazily by the OAPH getter —
-    // it is always valid after _stateHelper is assigned. False positive from source generator.
-#pragma warning disable CS8618
     public QueryPanelViewModel(Func<string, FSharpResult<string, string>> queryFunc)
-#pragma warning restore CS8618
     {
         _queryFunc = queryFunc;
-        QueryInput = "";
 
         var canExecute = this.WhenAnyValue(
             x => x.QueryInput,
@@ -92,10 +75,7 @@ public partial class QueryPanelViewModel : ReactiveObject
 
         ExecuteQueryCommand = ReactiveCommand.CreateFromTask(RunQueryAsync, canExecute);
 
-        // Build the State stream by merging three sources:
-        //   1. Command starts executing  → Querying
-        //   2. Command completes         → Data or Error (returned by RunQueryAsync)
-        //   3. Command throws            → Error (unexpected exception)
+        // Update the query state.
         _stateHelper = Observable.Merge(
                 ExecuteQueryCommand.IsExecuting
                     .Where(executing => executing)
@@ -108,19 +88,20 @@ public partial class QueryPanelViewModel : ReactiveObject
             .ToProperty(this, x => x.State);
     }
 
-    // Runs on a thread-pool thread (ReactiveCommand default scheduler).
-    // WebSocketClient.Query is a synchronous blocking call — that is intentional
-    // and acceptable on a background thread.
-    private Task<QueryState> RunQueryAsync()
+    private async Task<QueryState> RunQueryAsync()
     {
-        var result = _queryFunc(QueryInput);
+        var result = await Task.Run(() => _queryFunc(QueryInput));
 
-        if (!result.IsOk)
-            return Task.FromResult<QueryState>(new QueryStateError(result.ErrorValue));
+        return result.IsOk
+            ? ParseJsonResponse(result.ResultValue)
+            : new QueryStateError(result.ErrorValue);
+    }
 
+    private static QueryState ParseJsonResponse(string json)
+    {
         try
         {
-            using var doc = JsonDocument.Parse(result.ResultValue);
+            using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
             if (!root.TryGetProperty("success", out var successProp) || !successProp.GetBoolean())
@@ -128,19 +109,18 @@ public partial class QueryPanelViewModel : ReactiveObject
                 var errMsg = root.TryGetProperty("error", out var errProp)
                     ? errProp.GetString() ?? "Unknown error"
                     : "Unknown error";
-                return Task.FromResult<QueryState>(new QueryStateError(errMsg));
+                return new QueryStateError(errMsg);
             }
 
             if (!root.TryGetProperty("data", out var dataProp))
-                return Task.FromResult<QueryState>(new QueryStateError("No 'data' field in response"));
+                return new QueryStateError("No 'data' field in response");
 
             // Clone the element so it outlives the JsonDocument.
-            var cloned = dataProp.Clone();
-            return Task.FromResult<QueryState>(new QueryStateData(new JsonTreeNode("data", cloned)));
+            return new QueryStateData(new JsonTreeNode("data", dataProp.Clone()));
         }
         catch (Exception ex)
         {
-            return Task.FromResult<QueryState>(new QueryStateError($"JSON parse error: {ex.Message}"));
+            return new QueryStateError($"JSON parse error: {ex.Message}");
         }
     }
 }

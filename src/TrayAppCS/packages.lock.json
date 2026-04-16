@@ -65,15 +65,6 @@
           "Splat": "17.1.1"
         }
       },
-      "ReactiveUI.SourceGenerators": {
-        "type": "Direct",
-        "requested": "[2.6.1, )",
-        "resolved": "2.6.1",
-        "contentHash": "QU2EQZriHX9gvUx9Y3Eb0yZYzCGJbBnbSZQMmoH90ROzLNzDsslFFqz/bX89EmcMfr+8cOK3/b80zub3X/erHw==",
-        "dependencies": {
-          "ReactiveUI.SourceGenerators.Analyzers.CodeFixes": "2.6.1"
-        }
-      },
       "Serilog.Sinks.Console": {
         "type": "Direct",
         "requested": "[6.1.1, )",
@@ -308,11 +299,6 @@
           "Splat": "17.1.1",
           "System.Reactive": "6.1.0"
         }
-      },
-      "ReactiveUI.SourceGenerators.Analyzers.CodeFixes": {
-        "type": "Transitive",
-        "resolved": "2.6.1",
-        "contentHash": "zawC2el6QLXwapxg1N1Kf+8+sgd4h/QW0ruirnSvk/fuMt4PJmu6LpE00bMlIU3B3LZwMJFEbkrvB7wcs7OFKw=="
       },
       "SkiaSharp": {
         "type": "Transitive",
