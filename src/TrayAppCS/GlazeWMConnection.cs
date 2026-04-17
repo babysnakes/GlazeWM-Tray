@@ -30,18 +30,18 @@ public sealed class GlazeWMConnection : IDisposable
     private readonly Subject<TrayState> _stateSubject = new();
     private readonly Subject<string> _unsuccessfulSubject = new();
     private readonly Subject<string> _communicationErrorSubject = new();
-    private readonly Subject<MessageParserEvent> _parserErrorSubject = new();
+    private readonly Subject<string> _bugNotificationSubject = new();
     private readonly BehaviorSubject<bool> _disconnectedSubject = new(false);
 
     private CompositeDisposable _disposables = new();
-    private GlazeWM.Tray.WebSocketClient.WebSocketClient? _wsClient;
+    private Tray.WebSocketClient.WebSocketClient? _wsClient;
 
     // Stable observables — valid for the lifetime of this object, survive reconnections.
     public IObservable<TrayState> State => _stateSubject.AsObservable();
     public IObservable<string> UnsuccessfulResponses => _unsuccessfulSubject.AsObservable();
     public IObservable<string> CommunicationErrors => _communicationErrorSubject.AsObservable();
     // NoCurrentWorkspace and UnsetWsClient — forwarded to App for bug notifications.
-    public IObservable<MessageParserEvent> ParserErrors => _parserErrorSubject.AsObservable();
+    public IObservable<string> BugNotifications => _bugNotificationSubject.AsObservable();
     public IObservable<bool> IsDisconnected => _disconnectedSubject.AsObservable();
 
     public GlazeWMConnection(Uri uri)
@@ -77,7 +77,7 @@ public sealed class GlazeWMConnection : IDisposable
         _disposables = new CompositeDisposable();
 
         var parser = new ParserCS();
-        var client = new GlazeWM.Tray.WebSocketClient.WebSocketClient(_uri, parser.Dispatcher());
+        var client = new Tray.WebSocketClient.WebSocketClient(_uri, parser.Dispatcher());
         parser.SetWsClient(client.Agent);
         _wsClient = client;
 
@@ -86,7 +86,6 @@ public sealed class GlazeWMConnection : IDisposable
             .Subscribe(resp => _unsuccessfulSubject.OnNext(resp.Item)));
 
         _disposables.Add(parser.Notifications
-            .Where(n => n is not AppNotification.UnSuccessfulResponse)
             .Scan(TrayState.Empty, ApplyNotification)
             .DistinctUntilChanged()
             .Subscribe(state => _stateSubject.OnNext(state)));
@@ -126,8 +125,10 @@ public sealed class GlazeWMConnection : IDisposable
             Log.Error(agentError.Item, "MessageParser agent error:");
             HandleCommunicationError($"MessageParser: {agentError.Item.Message}");
         }
+        else if (evt.IsNoCurrentWorkspace || evt.IsUnsetWsClient)
+            _bugNotificationSubject.OnNext(nameof(evt));
         else
-            _parserErrorSubject.OnNext(evt);  // NoCurrentWorkspace, UnsetWsClient
+            Log.Error("Unknown parser event: {Evt}", evt);
     }
 
     private static TrayState ApplyNotification(TrayState state, AppNotification notification) =>
@@ -146,7 +147,7 @@ public sealed class GlazeWMConnection : IDisposable
         _stateSubject.Dispose();
         _unsuccessfulSubject.Dispose();
         _communicationErrorSubject.Dispose();
-        _parserErrorSubject.Dispose();
+        _bugNotificationSubject.Dispose();
         _disconnectedSubject.Dispose();
     }
 }

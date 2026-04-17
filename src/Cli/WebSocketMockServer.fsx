@@ -1,16 +1,20 @@
 #r "nuget: Fleck, 1.2.0"
 
 open System.IO
+open System.Text.Json
 open Fleck
 
-let mutable currentSocket: IWebSocketConnection option = None
+let mutable asyncClient: IWebSocketConnection option = None
+let mutable syncClient: IWebSocketConnection option = None
+let mutable connections: IWebSocketConnection list = []
 let mutable server: WebSocketServer option = None
 
 let readFixture fileName =
     let relativePath =
         Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "test", "LibTests", "Fixtures", fileName)
 
-    File.ReadAllText(relativePath)
+    let doc = JsonDocument.Parse(File.ReadAllText(relativePath))
+    JsonSerializer.Serialize(doc.RootElement)
 
 let sampleWorkspaces = readFixture "basic-workspaces-response.json"
 let basicFocusChangedEvent = readFixture "basic-focus-changed-event.json"
@@ -20,78 +24,91 @@ let newBindings = readFixture "binding-modes-custom-query-response.json"
 let workspacesNoFocus = readFixture "basic-workspaces-response-with-no-focus.json"
 let unsuccessfulResponse = readFixture "error-response-without-error.json"
 
-let run () =
-    let localServer = new WebSocketServer("ws://0.0.0.0:6123")
+let tryAssignSync (asyncSocket: IWebSocketConnection) =
+    if syncClient.IsNone then
+        connections
+        |> List.tryFind (fun c -> c.ConnectionInfo.Id <> asyncSocket.ConnectionInfo.Id)
+        |> Option.iter (fun s ->
+            syncClient <- Some s
+            printfn $">> Sync client identified: {s.ConnectionInfo.ClientIpAddress}")
 
-    localServer.Start(fun socket ->
-        socket.OnOpen <-
-            fun () ->
-                printfn $">> Client Connected: {socket.ConnectionInfo.ClientIpAddress}"
-                currentSocket <- Some socket
+let assignSync () =
+    match asyncClient with
+    | Some s -> tryAssignSync s
+    | None -> printfn "Error: async client not yet identified!"
 
-        socket.OnClose <-
-            fun () ->
-                printfn ">> Client Disconnected"
-                currentSocket <- None
-
-        socket.OnMessage <- fun message -> printfn $">> Received: %s{message}")
-
-    printfn "Server started on ws://0.0.0.0:8181"
-    server <- Some localServer
-
-let send (msg: string) =
-    match currentSocket with
+let send (socket: IWebSocketConnection option) (msg: string) =
+    match socket with
     | Some s ->
         s.Send(msg) |> ignore
         printfn $"Sent: %s{msg}"
     | None -> printfn "No client connected!"
 
-let runAuto () =
+let run () =
     let localServer = new WebSocketServer("ws://0.0.0.0:8181")
 
     localServer.Start(fun socket ->
         socket.OnOpen <-
             fun () ->
-                printfn $">> Client Connected: {socket.ConnectionInfo.ClientIpAddress}"
-                currentSocket <- Some socket
+                connections <- socket :: connections
+
+                match asyncClient with
+                | Some _ ->
+                    syncClient <- Some socket
+                    printfn $">> Sync client connected: {socket.ConnectionInfo.ClientIpAddress}"
+                | None -> printfn $">> Client connected (role TBD): {socket.ConnectionInfo.ClientIpAddress}"
 
         socket.OnClose <-
             fun () ->
-                printfn ">> Client Disconnected"
-                currentSocket <- None
+                connections <- connections |> List.filter (fun c -> c.ConnectionInfo.Id <> socket.ConnectionInfo.Id)
+
+                if asyncClient |> Option.exists (fun c -> c.ConnectionInfo.Id = socket.ConnectionInfo.Id) then
+                    asyncClient <- None
+                    printfn ">> Async client disconnected"
+                elif syncClient |> Option.exists (fun c -> c.ConnectionInfo.Id = socket.ConnectionInfo.Id) then
+                    syncClient <- None
+                    printfn ">> Sync client disconnected"
+                else
+                    printfn ">> Client disconnected"
 
         socket.OnMessage <-
             fun message ->
+                if message.StartsWith("sub ") then
+                    asyncClient <- Some socket
+                    printfn $">> Async client identified: {socket.ConnectionInfo.ClientIpAddress}"
+                    tryAssignSync socket
+
                 match message with
-                | "query workspaces" -> send sampleWorkspaces
-                | "query paused" -> send unpausedResponse
-                | "query binding-modes" -> send defaultBindings
+                | m when m.StartsWith("sub ") -> ()
+                | "query workspaces" -> send (Some socket) sampleWorkspaces
+                | "query paused" -> send (Some socket) unpausedResponse
+                | "query binding-modes" -> send (Some socket) defaultBindings
                 | _ -> printfn $">> Received: %s{message}")
 
     printfn "Server started on ws://0.0.0.0:8181"
     server <- Some localServer
 
 let stop () =
-    match currentSocket with
+    match asyncClient with
     | Some s ->
         s.Close()
-        currentSocket <- None
-        printfn "Closed client connection"
-        server |> Option.iter (fun s -> s.Dispose())
-        server <- None
-    | None -> printfn "No client connected!"
+        printfn "Closed async client connection"
+    | None -> printfn "Error: async client not connected!"
 
 let stopError () =
-    match currentSocket with
+    match asyncClient with
     | Some s ->
         s.Close(500)
-        currentSocket <- None
-        printfn "Closed client connection with error"
-        server |> Option.iter (fun s -> s.Dispose())
-        server <- None
-    | None -> printfn "No client connected!"
+        printfn "Closed async client connection with error"
+    | None -> printfn "Error: async client not connected!"
 
 (* -- Snippets you can select and evaluate in FSI
-send workspacesNoFocus
-send unsuccessfulResponse
+run ()
+assignSync ()
+send asyncClient sampleWorkspaces
+send asyncClient basicFocusChangedEvent
+send asyncClient workspacesNoFocus
+send asyncClient unsuccessfulResponse
+stop ()
+stopError ()
 *)

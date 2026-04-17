@@ -1,5 +1,6 @@
 using System.Reactive.Linq;
 using System.Text.Json;
+using GlazeWM.Tray.MessageParser;
 using Microsoft.FSharp.Core;
 using ReactiveUI;
 
@@ -47,8 +48,6 @@ public sealed class JsonTreeNode
             _ => []
         };
 }
-
-// ── ViewModel ─────────────────────────────────────────────────────────────────
 
 public class QueryPanelViewModel : ReactiveObject
 {

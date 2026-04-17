@@ -6,7 +6,6 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Notifications;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
-using GlazeWM.Tray.MessageParser;
 using GlazeWM.Tray.Models;
 using GlazeWM.TrayAppCS.Helpers;
 using GlazeWM.TrayAppCS.ViewModels;
@@ -48,7 +47,7 @@ public class App : Application
 
         lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         _tray.ToolTipText = "Workspace ?";
-        _tray.Menu = new NativeMenu();
+        _tray.Menu = [];
 
         BuildPersistentMenuItems(lifetime);
         UpdateTrayMenu([]);
@@ -60,10 +59,26 @@ public class App : Application
         _tray.Clicked += (_, _) => ToggleMainWindow();
         _tray.Icon = _statusIcons["icon"];
 
-        var icons = new TrayIcons();
-        icons.Add(_tray);
+        var icons = new TrayIcons { _tray };
         TrayIcon.SetIcons(this, icons);
 
+        InitializeConnection();
+
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            Log.Debug("Theme variant changed, new variant is {Variant}", ActualThemeVariant);
+            _connection?.Refresh();
+        };
+
+        lifetime.Exit += (_, _) => Cleanup();
+        _tray.IsVisible = true;
+
+        Log.Information("Application started");
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private void InitializeConnection()
+    {
         _connection = new GlazeWMConnection(_glazeUri);
 
         _connection.State
@@ -79,25 +94,13 @@ public class App : Application
             .ObserveOn(RxApp.MainThreadScheduler)
             .Subscribe(HandleCommunicationError);
 
-        _connection.ParserErrors
+        _connection.BugNotifications
             .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(HandleParserError);
+            .Subscribe(Notifications.SendBugNotification);
 
         _connection.IsDisconnected
             .ObserveOn(RxApp.MainThreadScheduler)
             .Subscribe(disconnected => _reInitMenuItem.IsEnabled = disconnected);
-
-        ActualThemeVariantChanged += (_, _) =>
-        {
-            Log.Debug("Theme variant changed, new variant is {Variant}", ActualThemeVariant);
-            _connection.Refresh();
-        };
-
-        lifetime.Exit += (_, _) => Cleanup();
-        _tray.IsVisible = true;
-
-        Log.Information("Application started");
-        base.OnFrameworkInitializationCompleted();
     }
 
     private void OnStateChanged(TrayState state)
@@ -144,14 +147,6 @@ public class App : Application
         Notifications.ShowErrorMessage("GlazeWM Communication Error", text);
         UpdateTrayMenu([]);
         _tray.Icon = _statusIcons["error"];
-    }
-
-    private void HandleParserError(MessageParserEvent evt)
-    {
-        if (evt.IsNoCurrentWorkspace)
-            Notifications.SendBugNotification("NoCurrentWorkspace");
-        else if (evt.IsUnsetWsClient)
-            Notifications.SendBugNotification("UnsetWsClient");
     }
 
     private void ToggleMainWindow()
@@ -201,7 +196,7 @@ public class App : Application
                 : Serilog.Events.LogEventLevel.Information;
 
         var quitItem = new NativeMenuItem { Header = "Quit" };
-        quitItem.Click += (_, _) => lifetime.Shutdown(0);
+        quitItem.Click += (_, _) => lifetime.Shutdown();
 
         _reInitMenuItem.Click += (_, _) =>
         {

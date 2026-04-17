@@ -12,6 +12,7 @@
     <!-- AVLN3001: App has no parameterless constructor by design — it is always created
          via AppBuilder.Configure factory. The XAML runtime loader never needs to instantiate it. -->
     <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+    <RootNamespace>GlazeWM.TrayAppCS</RootNamespace>
   </PropertyGroup>
 
   <!-- Reference icons from TrayApp so we don't duplicate them -->
