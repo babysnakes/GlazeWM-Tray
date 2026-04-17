@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using Avalonia;
@@ -25,8 +21,6 @@ using static GlazeWM.Tray.Literals;
 
 namespace GlazeWM.TrayAppCS;
 
-// Immutable snapshot of all tray icon state — a pure record.
-// The entire rendering decision (icon + menu) is a pure function of this value.
 public sealed record TrayState(
     WorkspacesNotification Workspaces,
     bool Paused,
@@ -40,22 +34,21 @@ public sealed record TrayState(
         CustomBinding: false);
 }
 
-public partial class App : Application
+public class App : Application
 {
     private readonly Uri _glazeUri = new("ws://localhost:6123/");
     private readonly LoggingLevelSwitch _levelSwitch;
     private readonly string _logDir;
     private readonly TrayIcon _tray = new();
     private readonly NativeMenuItem _reInitMenuItem = new() { Header = "Reinitialize GlazeWM Connection" };
+    private readonly Dictionary<string, WindowIcon> _statusIcons = LoadIcons();
 
     // Connection-scoped disposables — cleared and rebuilt on every InitGlazeConnection call.
     private CompositeDisposable _connectionDisposables = new();
 
-    private Dictionary<string, WindowIcon> _statusIcons = [];
     private NativeMenuItem[] _persistentMenuItems = [];
     private bool _disconnected;
-    private ParserCS? _parser;
-    private GlazeWM.Tray.WebSocketClient.WebSocketClient? _wsClient;
+    private Tray.WebSocketClient.WebSocketClient? _wsClient;
     private MainWindow? _mainWindow;
 
     public App(LoggingLevelSwitch levelSwitch, string logDir)
@@ -73,8 +66,6 @@ public partial class App : Application
             base.OnFrameworkInitializationCompleted();
             return;
         }
-
-        _statusIcons = LoadIcons();
 
         lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         _tray.ToolTipText = "Workspace ?";
@@ -108,8 +99,6 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    // ── Connection management ───────────────────────────────────────────────
-
     private void InitGlazeConnection()
     {
         // Dispose all subscriptions from any previous connection before creating new ones.
@@ -120,36 +109,10 @@ public partial class App : Application
         var client = new GlazeWM.Tray.WebSocketClient.WebSocketClient(_glazeUri, parser.Dispatcher());
         parser.SetWsClient(client.Agent);
 
-        _parser = parser;
         _wsClient = client;
         _disconnected = false;
 
-        // Side-channel: unsuccessful GlazeWM responses shown as in-window notifications.
-        var sub1 = parser.Notifications
-            .OfType<AppNotification.UnSuccessfulResponse>()
-            .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(resp =>
-                _mainWindow?.Notify(
-                    "Unsuccessful Response from GlazeWM",
-                    resp.Item,
-                    NotificationType.Error));
-        _connectionDisposables.Add(sub1);
-
-        // Main state stream: accumulate workspace/pause/binding notifications into TrayState,
-        // then render the tray icon and menu whenever the state changes.
-        var sub2 = parser.Notifications
-            .Where(n => n is not AppNotification.UnSuccessfulResponse)
-            .Scan(TrayState.Empty, ApplyNotification)
-            .DistinctUntilChanged()
-            .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(OnStateChanged);
-        _connectionDisposables.Add(sub2);
-
-        // Parser errors (parse failures, agent crashes, etc.)
-        var sub3 = parser.Errors
-            .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(HandleParserError);
-        _connectionDisposables.Add(sub3);
+        SubscribeToParser(parser);
 
         // WebSocket-level errors (disconnect, send failure, etc.)
         // [<CLIEvent>] F# events are standard .NET events in C# — use +=
@@ -161,7 +124,33 @@ public partial class App : Application
         RefreshState();
     }
 
-    // Pure function: fold a single AppNotification into TrayState.
+    private void SubscribeToParser(ParserCS parser)
+    {
+        // Side-channel: unsuccessful GlazeWM responses shown as in-window notifications.
+        _connectionDisposables.Add(parser.Notifications
+            .OfType<AppNotification.UnSuccessfulResponse>()
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(resp =>
+                _mainWindow?.Notify(
+                    "Unsuccessful Response from GlazeWM",
+                    resp.Item,
+                    NotificationType.Error)));
+
+        // Main state stream: accumulate workspace/pause/binding notifications into TrayState,
+        // then render the tray icon and menu whenever the state changes.
+        _connectionDisposables.Add(parser.Notifications
+            .Where(n => n is not AppNotification.UnSuccessfulResponse)
+            .Scan(TrayState.Empty, ApplyNotification)
+            .DistinctUntilChanged()
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(OnStateChanged));
+
+        // Parser errors (parse failures, agent crashes, etc.)
+        _connectionDisposables.Add(parser.Errors
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(HandleParserError));
+    }
+
     private static TrayState ApplyNotification(TrayState state, AppNotification notification) =>
         notification switch
         {
@@ -178,8 +167,6 @@ public partial class App : Application
         _wsClient.SendMessage(QBinding);
         _wsClient.SendMessage(QPaused);
     }
-
-    // ── Tray rendering ──────────────────────────────────────────────────────
 
     private void OnStateChanged(TrayState state)
     {
@@ -216,8 +203,6 @@ public partial class App : Application
             _tray.Menu.Items.Add(item);
     }
 
-    // ── Error handling ──────────────────────────────────────────────────────
-
     private void HandleCommunicationError(string msg)
     {
         var text = $"A fatal error occurred regarding communication with GlazeWM\n\n{msg}.\n\n" +
@@ -237,7 +222,6 @@ public partial class App : Application
 
         _connectionDisposables.Dispose();
         _connectionDisposables = new CompositeDisposable();
-        _parser = null;
 
         // WebSocketClient uses explicit F# IDisposable implementation — cast to dispose.
         if (_wsClient is IDisposable disposableClient)
@@ -261,8 +245,6 @@ public partial class App : Application
         }
     }
 
-    // ── Window management ───────────────────────────────────────────────────
-
     private void ToggleMainWindow()
     {
         if (_mainWindow is null)
@@ -285,8 +267,6 @@ public partial class App : Application
             _mainWindow.Hide();
         }
     }
-
-    // ── Persistent menu setup ───────────────────────────────────────────────
 
     private void BuildPersistentMenuItems(IClassicDesktopStyleApplicationLifetime lifetime)
     {
@@ -337,12 +317,8 @@ public partial class App : Application
         ];
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
-
     private FSharpResult<string, string> RunSyncQuery(string query) =>
-        _wsClient is not null
-            ? _wsClient.Query(query, FSharpOption<int>.None)
-            : FSharpResult<string, string>.NewError("BUG: No websocket client set");
+        _wsClient?.Query(query, FSharpOption<int>.None) ?? FSharpResult<string, string>.NewError("BUG: No websocket client set");
 
     private static Dictionary<string, WindowIcon> LoadIcons()
     {
