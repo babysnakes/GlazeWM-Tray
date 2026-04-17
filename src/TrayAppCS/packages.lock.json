@@ -44,6 +44,17 @@
           "Microsoft.IO.RecyclableMemoryStream": "3.0.1"
         }
       },
+      "Huskui.Avalonia": {
+        "type": "Direct",
+        "requested": "[0.10.4, )",
+        "resolved": "0.10.4",
+        "contentHash": "ncL/K8hxOrLp6xdIvjk/tS5yi+25+3TCOYklGJWuO0KbfF331T8kxid+cFYjuMtOQz9KLgEJ9IJMw8Y2Vu4dzQ==",
+        "dependencies": {
+          "Avalonia": "11.3.12",
+          "FluentIcons.Avalonia": "2.0.320",
+          "JetBrains.Annotations": "2025.2.4"
+        }
+      },
       "MessageBox.Avalonia": {
         "type": "Direct",
         "requested": "[3.3.1.1, )",
@@ -164,6 +175,30 @@
           "System.Reactive": "6.0.1"
         }
       },
+      "FluentIcons.Avalonia": {
+        "type": "Transitive",
+        "resolved": "2.0.320",
+        "contentHash": "KSS8O3rRrGmpzp6mKYiRJphUPGroNGQA1O7eKP73fx2m1tnZE5ATFcIOTCwc4K3gSDu0BJ/8AaeWJuBFTil8Xw==",
+        "dependencies": {
+          "Avalonia": "11.0.0",
+          "FluentIcons.Common": "[2.0.320]",
+          "FluentIcons.Resources.Avalonia": "[2.0.320]"
+        }
+      },
+      "FluentIcons.Common": {
+        "type": "Transitive",
+        "resolved": "2.0.320",
+        "contentHash": "bajBiYREdhcMZeNU7wI+tWqaYtjrZMEjO2MY+3r6Kr1V6RQP88lhpiBJd77gFJQdijG4dwkYGiVY5bGVD0eV6A=="
+      },
+      "FluentIcons.Resources.Avalonia": {
+        "type": "Transitive",
+        "resolved": "2.0.320",
+        "contentHash": "z241GBo1fOVv3ZVZMG1Sw9Zls0PohUfA0UCffX//FuwrHI/4vGQO+me2xGs6b5okm1BbZ8PnxVLf68DVjavn1w==",
+        "dependencies": {
+          "Avalonia": "11.0.0",
+          "FluentIcons.Common": "[2.0.320]"
+        }
+      },
       "FSharp.Core": {
         "type": "Transitive",
         "resolved": "9.0.300",
@@ -266,6 +301,11 @@
         "type": "Transitive",
         "resolved": "8.3.1.1",
         "contentHash": "UsJtQsfAJoFDZrXc4hCUfRPMqccfKZ0iumJ/upcUjz/cmsTgVFGNEL5yaJWmkqsuFYdMWbj/En5/kS4PFl9hBA=="
+      },
+      "JetBrains.Annotations": {
+        "type": "Transitive",
+        "resolved": "2025.2.4",
+        "contentHash": "TwbgxAkXxY+vNEhNVx/QXjJ4vqxmepOjsgRvvImQPbHkHMMb4W+ahL3laMsxXKtNT7iMy+E1B3xkqao2hf1n3A=="
       },
       "MicroCom.Runtime": {
         "type": "Transitive",
