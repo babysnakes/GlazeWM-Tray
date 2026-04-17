@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -12,27 +11,11 @@ using GlazeWM.Tray.Models;
 using GlazeWM.TrayAppCS.Helpers;
 using GlazeWM.TrayAppCS.ViewModels;
 using GlazeWM.TrayAppCS.Views;
-using Microsoft.FSharp.Collections;
-using Microsoft.FSharp.Core;
 using ReactiveUI;
 using Serilog;
 using Serilog.Core;
-using static GlazeWM.Tray.Literals;
 
 namespace GlazeWM.TrayAppCS;
-
-public sealed record TrayState(
-    WorkspacesNotification Workspaces,
-    bool Paused,
-    bool CustomBinding)
-{
-    public static readonly TrayState Empty = new(
-        new WorkspacesNotification(
-            new WorkspaceName("?", "Unknown Workspace"),
-            FSharpList<WorkspaceName>.Empty),
-        Paused: false,
-        CustomBinding: false);
-}
 
 public class App : Application
 {
@@ -43,12 +26,8 @@ public class App : Application
     private readonly NativeMenuItem _reInitMenuItem = new() { Header = "Reinitialize GlazeWM Connection" };
     private readonly Dictionary<string, WindowIcon> _statusIcons = LoadIcons();
 
-    // Connection-scoped disposables — cleared and rebuilt on every InitGlazeConnection call.
-    private CompositeDisposable _connectionDisposables = new();
-
     private NativeMenuItem[] _persistentMenuItems = [];
-    private bool _disconnected;
-    private Tray.WebSocketClient.WebSocketClient? _wsClient;
+    private GlazeWMConnection? _connection;
     private MainWindow? _mainWindow;
 
     public App(LoggingLevelSwitch levelSwitch, string logDir)
@@ -74,7 +53,8 @@ public class App : Application
         BuildPersistentMenuItems(lifetime);
         UpdateTrayMenu([]);
 
-        var vm = new MainWindowViewModel(RunSyncQuery);
+        var vm = new MainWindowViewModel(query => _connection?.Query(query)
+            ?? Microsoft.FSharp.Core.FSharpResult<string, string>.NewError("Not connected"));
         _mainWindow = new MainWindow { DataContext = vm };
 
         _tray.Clicked += (_, _) => ToggleMainWindow();
@@ -84,12 +64,33 @@ public class App : Application
         icons.Add(_tray);
         TrayIcon.SetIcons(this, icons);
 
-        InitGlazeConnection();
+        _connection = new GlazeWMConnection(_glazeUri);
+
+        _connection.State
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(OnStateChanged);
+
+        _connection.UnsuccessfulResponses
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(msg => _mainWindow?.Notify(
+                "Unsuccessful Response from GlazeWM", msg, NotificationType.Error));
+
+        _connection.CommunicationErrors
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(HandleCommunicationError);
+
+        _connection.ParserErrors
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(HandleParserError);
+
+        _connection.IsDisconnected
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(disconnected => _reInitMenuItem.IsEnabled = disconnected);
 
         ActualThemeVariantChanged += (_, _) =>
         {
             Log.Debug("Theme variant changed, new variant is {Variant}", ActualThemeVariant);
-            RefreshState();
+            _connection.Refresh();
         };
 
         lifetime.Exit += (_, _) => Cleanup();
@@ -97,75 +98,6 @@ public class App : Application
 
         Log.Information("Application started");
         base.OnFrameworkInitializationCompleted();
-    }
-
-    private void InitGlazeConnection()
-    {
-        // Dispose all subscriptions from any previous connection before creating new ones.
-        _connectionDisposables.Dispose();
-        _connectionDisposables = new CompositeDisposable();
-
-        var parser = new ParserCS();
-        var client = new GlazeWM.Tray.WebSocketClient.WebSocketClient(_glazeUri, parser.Dispatcher());
-        parser.SetWsClient(client.Agent);
-
-        _wsClient = client;
-        _disconnected = false;
-
-        SubscribeToParser(parser);
-
-        // WebSocket-level errors (disconnect, send failure, etc.)
-        // [<CLIEvent>] F# events are standard .NET events in C# — use +=
-        client.Error += (_, msg) => HandleCommunicationError(msg);
-
-        // Subscribe to GlazeWM events and fetch initial state.
-        client.SendMessage(
-            $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}");
-        RefreshState();
-    }
-
-    private void SubscribeToParser(ParserCS parser)
-    {
-        // Side-channel: unsuccessful GlazeWM responses shown as in-window notifications.
-        _connectionDisposables.Add(parser.Notifications
-            .OfType<AppNotification.UnSuccessfulResponse>()
-            .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(resp =>
-                _mainWindow?.Notify(
-                    "Unsuccessful Response from GlazeWM",
-                    resp.Item,
-                    NotificationType.Error)));
-
-        // Main state stream: accumulate workspace/pause/binding notifications into TrayState,
-        // then render the tray icon and menu whenever the state changes.
-        _connectionDisposables.Add(parser.Notifications
-            .Where(n => n is not AppNotification.UnSuccessfulResponse)
-            .Scan(TrayState.Empty, ApplyNotification)
-            .DistinctUntilChanged()
-            .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(OnStateChanged));
-
-        // Parser errors (parse failures, agent crashes, etc.)
-        _connectionDisposables.Add(parser.Errors
-            .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(HandleParserError));
-    }
-
-    private static TrayState ApplyNotification(TrayState state, AppNotification notification) =>
-        notification switch
-        {
-            AppNotification.Workspaces ws       => state with { Workspaces = ws.Item },
-            AppNotification.Paused p            => state with { Paused = p.Item },
-            AppNotification.NewBindingModes nb  => state with { CustomBinding = nb.Item },
-            _                                   => state
-        };
-
-    private void RefreshState()
-    {
-        if (_wsClient is null) return;
-        _wsClient.SendMessage(QWorkspaces);
-        _wsClient.SendMessage(QBinding);
-        _wsClient.SendMessage(QPaused);
     }
 
     private void OnStateChanged(TrayState state)
@@ -194,11 +126,10 @@ public class App : Application
             var dn = ws.Name == ws.DisplayName ? $"Workspace {ws.Name}" : ws.DisplayName;
             var item = new NativeMenuItem { Header = $"{ws.Name} - {dn}" };
             var captured = ws;
-            item.Click += (_, _) => _wsClient?.SendMessage($"{CFocusWorkspacePrefix} {captured.Name}");
+            item.Click += (_, _) => _connection?.FocusWorkspace(captured.Name);
             _tray.Menu.Items.Add(item);
         }
 
-        _reInitMenuItem.IsEnabled = _disconnected;
         foreach (var item in _persistentMenuItems)
             _tray.Menu.Items.Add(item);
     }
@@ -211,38 +142,16 @@ public class App : Application
                    "from the tray menu.";
 
         Notifications.ShowErrorMessage("GlazeWM Communication Error", text);
-        Log.Error("A websocket client exception had occurred: {Err}", msg);
-        _disconnected = true;
-
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            UpdateTrayMenu([]);
-            _tray.Icon = _statusIcons["error"];
-        });
-
-        _connectionDisposables.Dispose();
-        _connectionDisposables = new CompositeDisposable();
-
-        // WebSocketClient uses explicit F# IDisposable implementation — cast to dispose.
-        if (_wsClient is IDisposable disposableClient)
-            disposableClient.Dispose();
-        _wsClient = null;
+        UpdateTrayMenu([]);
+        _tray.Icon = _statusIcons["error"];
     }
 
     private void HandleParserError(MessageParserEvent evt)
     {
-        // Cases with data use type patterns; cases without data use the generated IsXxx properties.
-        if (evt is MessageParserEvent.ParseError parseError)
-            Log.Error("A parser exception had occurred: {Err}", parseError.Item);
-        else if (evt.IsNoCurrentWorkspace)
+        if (evt.IsNoCurrentWorkspace)
             Notifications.SendBugNotification("NoCurrentWorkspace");
         else if (evt.IsUnsetWsClient)
             Notifications.SendBugNotification("UnsetWsClient");
-        else if (evt is MessageParserEvent.AgentError agentError)
-        {
-            Log.Error(agentError.Item, "MessageParser agent error:");
-            HandleCommunicationError($"MessageParser: {agentError.Item.Message}");
-        }
     }
 
     private void ToggleMainWindow()
@@ -298,11 +207,11 @@ public class App : Application
         {
             Log.Information("Reinitializing GlazeWM Connection");
             _mainWindow?.Notify("Reinitializing GlazeWM Connection", "Attempting to reconnect...");
-            InitGlazeConnection();
+            _connection?.Reconnect();
         };
 
         var refreshItem = new NativeMenuItem { Header = "Refresh" };
-        refreshItem.Click += (_, _) => RefreshState();
+        refreshItem.Click += (_, _) => _connection?.Refresh();
 
         _persistentMenuItems =
         [
@@ -316,9 +225,6 @@ public class App : Application
             quitItem,
         ];
     }
-
-    private FSharpResult<string, string> RunSyncQuery(string query) =>
-        _wsClient?.Query(query, FSharpOption<int>.None) ?? FSharpResult<string, string>.NewError("BUG: No websocket client set");
 
     private static Dictionary<string, WindowIcon> LoadIcons()
     {
@@ -337,9 +243,7 @@ public class App : Application
     private void Cleanup()
     {
         Log.Information("Shutting down...");
-        _connectionDisposables.Dispose();
-        if (_wsClient is IDisposable disposable)
-            disposable.Dispose();
+        _connection?.Dispose();
         _tray.IsVisible = false;
     }
 }
