@@ -1,7 +1,6 @@
 #:package CliWrap@3.10.1
 
 using CliWrap;
-using System.IO;
 using System.IO.Compression;
 using System.Xml.Linq;
 

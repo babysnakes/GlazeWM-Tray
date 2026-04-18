@@ -1,7 +1,6 @@
 #:package CliWrap@3.10.1
 
 using CliWrap;
-using System.IO;
 using System.Xml.Linq;
 
 var rid = args.Length > 0 ? args[0] : "osx-arm64";

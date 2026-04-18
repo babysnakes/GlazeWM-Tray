@@ -45,8 +45,7 @@ type BindingModesChangedEventData = { NewBindingModes: BindingMode list }
 
 type BindingModesChangedEvent = { Data: BindingModesChangedEventData }
 
-type AppNotification =
-    | RefreshState
+type ParsingOutput =
     | Workspaces of WorkspacesNotification
     | Paused of bool
     | NewBindingModes of bool

@@ -1,6 +1,13 @@
 ﻿module GlazeWM.Tray.Literals
 
 [<Literal>]
+let GlazeWMDefaultPort = 6123
+
+[<Literal>]
+// The environment variable containing GlazeWM port (for development)
+let PortDevEnvVar = "GLAZEWM_TRAY_PORT"
+
+[<Literal>]
 let QWorkspaces = "query workspaces"
 
 [<Literal>]

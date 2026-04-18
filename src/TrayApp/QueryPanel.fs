@@ -1,6 +1,5 @@
 ﻿namespace GlazeWM.TrayApp.Views
 
-open System.Collections.Generic
 open Avalonia.Controls
 open Avalonia.Controls.Primitives
 open Avalonia.FuncUI
@@ -21,9 +20,7 @@ module QueryPanel =
         | Querying
         | Empty
 
-    type private JsonItem =
-        | JsonElement of JsonValue
-        | JsonRecordElement of name: string * value: JsonValue
+    type private JsonItem = JsonItem of name: string * value: JsonValue
 
     let view (f: string -> Result<string, string>) =
         Component(fun ctx ->
@@ -54,37 +51,22 @@ module QueryPanel =
                 triggers = [ EffectTrigger.AfterChange query ]
             )
 
-            let itemsSelector (data: JsonItem) : JsonItem seq =
-                match data with
-                | JsonElement e -> e
-                | JsonRecordElement(_, v) -> v
-                |> function
-                    | JsonValue.Array a -> a |> Seq.indexed |> Seq.map (fun (i, v) -> JsonRecordElement($"{i}", v))
-                    | JsonValue.Record r -> r |> Seq.map JsonRecordElement
-                    | _ -> Array.empty
+            let itemsSelector (JsonItem(_, v)) : JsonItem seq =
+                match v with
+                | JsonValue.Array a -> a |> Seq.indexed |> Seq.map (fun (i, v) -> JsonItem($"{i}", v))
+                | JsonValue.Record r -> r |> Seq.map JsonItem
+                | _ -> Array.empty
 
-            let treeView (item: JsonItem) =
-                match item with
-                | JsonElement e ->
-                    TextBlock.create
-                        [ match e with
-                          | JsonValue.String s -> TextBlock.text s
-                          | JsonValue.Number n -> TextBlock.text $"{n}"
-                          | JsonValue.Float f -> TextBlock.text $"{f}"
-                          | JsonValue.Boolean b -> TextBlock.text $"{b}"
-                          | JsonValue.Null -> TextBlock.text "null"
-                          | JsonValue.Record _ -> TextBlock.text ""
-                          | JsonValue.Array _ -> TextBlock.text "" ]
-                | JsonRecordElement(name, value) ->
-                    TextBlock.create
-                        [ match value with
-                          | JsonValue.String s -> TextBlock.text $"{name} :  {s}"
-                          | JsonValue.Number n -> TextBlock.text $"{name} :  {n}"
-                          | JsonValue.Float f -> TextBlock.text $"{name} :  {f}"
-                          | JsonValue.Boolean b -> TextBlock.text $"{name} :  {b}"
-                          | JsonValue.Null -> TextBlock.text $"{name} :  null"
-                          | JsonValue.Record _ -> TextBlock.text $"{name}"
-                          | JsonValue.Array _ -> TextBlock.text $"{name}" ]
+            let treeView (JsonItem(name, value)) =
+                TextBlock.create
+                    [ match value with
+                      | JsonValue.String s -> TextBlock.text $"{name} :  {s}"
+                      | JsonValue.Number n -> TextBlock.text $"{name} :  {n}"
+                      | JsonValue.Float f -> TextBlock.text $"{name} :  {f}"
+                      | JsonValue.Boolean b -> TextBlock.text $"{name} :  {b}"
+                      | JsonValue.Null -> TextBlock.text $"{name} :  null"
+                      | JsonValue.Record _ -> TextBlock.text $"{name}"
+                      | JsonValue.Array _ -> TextBlock.text $"{name}" ]
 
 
             let waiting: IView = TextBlock.create [ TextBlock.text "Waiting for response..." ]
@@ -100,7 +82,7 @@ module QueryPanel =
                 | Empty -> empty
                 | Querying -> waiting
                 | ErrorMsg e -> error e
-                | ResponseData r -> data (JsonRecordElement("data", r))
+                | ResponseData r -> data (JsonItem("data", r))
 
             let queryInput =
                 StackPanel.create
@@ -121,10 +103,8 @@ module QueryPanel =
                                   Button.onClick (fun _ -> query.Set queryInput.Current) ] ] ]
 
             DockPanel.create
-                [ DockPanel.children [
-                    queryInput
-                    ScrollViewer.create [
-                        ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
-                        ScrollViewer.content (responseView ())
-                    ]
-                ] ])
+                [ DockPanel.children
+                      [ queryInput
+                        ScrollViewer.create
+                            [ ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                              ScrollViewer.content (responseView ()) ] ] ])

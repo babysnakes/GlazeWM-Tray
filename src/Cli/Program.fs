@@ -1,6 +1,5 @@
 ﻿// For more information see https://aka.ms/fsharp-console-apps
 open System
-open System.Threading
 open GlazeWM.Tray.Literals
 open Serilog
 open Serilog.Core
@@ -13,13 +12,12 @@ let levelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
 Log.Logger <- LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).WriteTo.Console().CreateLogger()
 
 let demoHandler =
-    MailboxProcessor.Start(fun (inbox: MailboxProcessor<AppNotification>) ->
+    MailboxProcessor.Start(fun (inbox: MailboxProcessor<ParsingOutput>) ->
         let rec loop () =
             async {
                 let! msg = inbox.Receive()
 
                 match msg with
-                | RefreshState -> ()
                 | Workspaces wn ->
                     Log.Information(
                         "Current workspace: {Name}, {DisplayName}. Active workspaces: {Active}",
