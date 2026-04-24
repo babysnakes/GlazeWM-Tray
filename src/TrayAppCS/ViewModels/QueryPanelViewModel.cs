@@ -1,6 +1,5 @@
 using System.Reactive.Linq;
 using System.Text.Json;
-using GlazeWM.Tray.MessageParser;
 using Microsoft.FSharp.Core;
 using ReactiveUI;
 
@@ -14,15 +13,11 @@ public sealed record QueryStateError(string Message) : QueryState;
 public sealed record QueryStateData(JsonTreeNode Root) : QueryState;
 
 // JSON construct to use with TreeView
-public sealed class JsonTreeNode
+public sealed record JsonTreeNode (string Header, IReadOnlyList<JsonTreeNode> Children)
 {
-    public string Header { get; }
-    public IReadOnlyList<JsonTreeNode> Children { get; }
-
-    public JsonTreeNode(string label, JsonElement element)
+    public static JsonTreeNode Create(string label, JsonElement element)
     {
-        Header = BuildHeader(label, element);
-        Children = BuildChildren(element);
+        return new JsonTreeNode(BuildHeader(label, element), BuildChildren(element));
     }
 
     private static string BuildHeader(string label, JsonElement element) =>
@@ -40,10 +35,10 @@ public sealed class JsonTreeNode
         element.ValueKind switch
         {
             JsonValueKind.Object => element.EnumerateObject()
-                .Select(p => new JsonTreeNode(p.Name, p.Value))
+                .Select(p => JsonTreeNode.Create(p.Name, p.Value))
                 .ToList(),
             JsonValueKind.Array => element.EnumerateArray()
-                .Select((v, i) => new JsonTreeNode(i.ToString(), v))
+                .Select((v, i) => JsonTreeNode.Create(i.ToString(), v))
                 .ToList(),
             _ => []
         };
@@ -115,7 +110,7 @@ public class QueryPanelViewModel : ReactiveObject
                 return new QueryStateError("No 'data' field in response");
 
             // Clone the element so it outlives the JsonDocument.
-            return new QueryStateData(new JsonTreeNode("data", dataProp.Clone()));
+            return new QueryStateData(JsonTreeNode.Create("data", dataProp.Clone()));
         }
         catch (Exception ex)
         {
