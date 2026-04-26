@@ -15,4 +15,7 @@
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Styles.Resources>
+    <Style Selector=":is(Control)">
+        <Setter Property="ToolTip.ShowDelay" Value="600" />
+    </Style>
 </Styles>

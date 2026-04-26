@@ -7,6 +7,7 @@ open Avalonia.FuncUI.Hosts
 open Avalonia.FuncUI
 open Avalonia.FuncUI.DSL
 open Avalonia.FuncUI.Types
+open Avalonia.Input.Platform
 open Avalonia.Layout
 
 type MainWindow(syncQueryF: string -> Result<string, string>) as this =
@@ -15,9 +16,12 @@ type MainWindow(syncQueryF: string -> Result<string, string>) as this =
     let notificationManager = WindowNotificationManager(this, MaxItems = 3)
     let pending = System.Collections.Generic.Queue<Notification>()
     let mutable initialized = false
+    let getClipboard () : IClipboard = TopLevel.GetTopLevel(this).Clipboard
 
     let tabs: IView list =
-        [ TabItem.create [ TabItem.header "Query"; TabItem.content (QueryPanel.view syncQueryF) ]
+        [ TabItem.create
+              [ TabItem.header "Query"
+                TabItem.content (QueryPanel.view syncQueryF getClipboard) ]
           TabItem.create [ TabItem.header "About"; TabItem.content AboutPanel.contents ] ]
 
     let view () =
@@ -39,6 +43,8 @@ type MainWindow(syncQueryF: string -> Result<string, string>) as this =
         base.Title <- "GlazeWM Tray"
         base.Width <- 600
         base.Height <- 400
+        base.MinWidth <- 550
+        base.MinHeight <- 250
         base.Content <- view ()
 
     member _.Notify(title, body, ?tpe) =
