@@ -123,6 +123,7 @@ module QueryPanel =
                       Grid.children
                           [ TextBox.create
                                 [ Grid.column 0
+                                  TextBox.name "query-input"
                                   TextBox.minWidth 200.0
                                   TextBox.text queryInput.Current
                                   TextBox.onTextChanged queryInput.Set
@@ -132,19 +133,22 @@ module QueryPanel =
                                   StackPanel.orientation Orientation.Horizontal
                                   StackPanel.children
                                       [ Button.create
-                                            [ Button.margin (4.0, 0.0, 0.0, 0.0)
+                                            [ Button.name "query-button"
+                                              Button.margin (4.0, 0.0, 0.0, 0.0)
                                               Button.content "Query"
                                               ToolTip.tip "Execute query"
                                               Button.isEnabled canQuery
                                               Button.onClick (fun _ -> query.Set queryInput.Current) ]
                                         Button.create
-                                            [ Button.margin (8.0, 0.0, 0.0, 0.0)
+                                            [ Button.name "fold-button"
+                                              Button.margin (8.0, 0.0, 0.0, 0.0)
                                               Button.content (pathIcon collapseIcon)
                                               ToolTip.tip "Collapse all folds"
                                               Button.isEnabled state.Current.IsResponseData
                                               Button.onClick (fun _ -> collapseKey.Set(collapseKey.Current + 1)) ]
                                         Button.create
-                                            [ Button.margin (4.0, 0.0, 0.0, 0.0)
+                                            [ Button.name "copy-button"
+                                              Button.margin (4.0, 0.0, 0.0, 0.0)
                                               Button.content (pathIcon copyBtnIcon)
                                               ToolTip.tip "Copy formated JSON to clipboard"
                                               Button.isEnabled state.Current.IsResponseData

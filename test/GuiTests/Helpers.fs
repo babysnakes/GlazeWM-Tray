@@ -21,16 +21,11 @@ let allType<'T when 'T :> Visual> (window: Window) =
         | :? 'T as b -> Some b
         | _ -> None)
 
-/// Identifies a button by its tooltip. The provided tooltip is compared with `Contains`.
-/// Fails if the result is not unique.
-let buttonByTooltip (tooltip: string) (window: Window) =
+/// Get a button by its unique name
+let getButton window buttonName =
     allType<Button> window
-    |> Seq.filter (fun b ->
-        match ToolTip.GetTip(b) with
-        | :? string as tip -> tip.Contains tooltip
-        | _ -> false)
+    |> Seq.filter (fun b -> b.Name = buttonName)
     |> Seq.exactlyOne
-
 
 /// nested background tasks caused by `useEffect` timings are tricky to test. This forces execution, once per
 /// nested level. The sleep gives thread-pool work (e.g., JSON parsing after runQuery returns) time to complete

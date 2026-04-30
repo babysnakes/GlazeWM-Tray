@@ -16,10 +16,7 @@ module QueryPanelTests =
     let extractQueryInput (window: Window) =
         allType<TextBox> window |> Seq.exactlyOne
 
-    let extractQueryButton window =
-        allType<Button> window
-        |> Seq.filter (fun b -> b.Content = "Query")
-        |> Seq.exactlyOne
+    let extractQueryButton window = getButton window "query-button"
 
     let mkIClipboard (f: string -> Task) =
         { new IClipboard with
@@ -155,7 +152,7 @@ module QueryPanelTests =
 
         let queryTextBox = extractQueryInput window
         let queryButton = extractQueryButton window
-        let foldButton = buttonByTooltip "Collapse" window
+        let foldButton = getButton window "fold-button"
         queryTextBox.Focus() |> ignore
         window.KeyTextInput("query focused")
         queryButton.RaiseEvent(RoutedEventArgs(Button.ClickEvent))
@@ -189,7 +186,7 @@ module QueryPanelTests =
 
         let queryTextBox = extractQueryInput window
         let queryButton = extractQueryButton window
-        let copyButton = buttonByTooltip "clipboard" window
+        let copyButton = getButton window "copy-button"
         queryTextBox.Focus() |> ignore
         window.KeyTextInput("query focused")
         queryButton.RaiseEvent(RoutedEventArgs(Button.ClickEvent))
