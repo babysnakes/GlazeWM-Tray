@@ -27,7 +27,6 @@ type GlazeWMConnection(config: AppConfig, parserMessageHandler: MailboxProcessor
         notifications.Trigger(ConnectionError msg)
 
     let handleMessageParserEvent (msg: MessageParserEvent) =
-        // TODO: forward bug notifications event to App can perform it
         match msg with
         | ParseError s -> Log.Error("A parser exception had occured: {Err}", s)
         | NoCurrentWorkspace -> notifications.Trigger BugNoCurrentWorkspace
