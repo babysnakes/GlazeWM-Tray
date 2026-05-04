@@ -11,7 +11,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # we need it to compare app.manifest versions
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -54,7 +56,8 @@ jobs:
           $prXml = Get-Content -Raw -Encoding UTF8 $manifestPath
           $prVersion = Get-AssemblyIdentityVersion $prXml
 
-          $mainXml = git show "origin/main:$manifestPath"
+          $mainXml = (git show "origin/main:$manifestPath") -join "`n"
+          $mainXml = $mainXml.TrimStart([char]0xFEFF)
           $mainVersion = Get-AssemblyIdentityVersion $mainXml
 
           Write-Host "PR manifest version:   $prVersion"

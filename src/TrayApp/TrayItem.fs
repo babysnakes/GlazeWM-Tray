@@ -46,7 +46,7 @@ type TrayItem(config: AppConfig) =
     let menuEvent = Event<MenuEvent>()
     let errorEvent = Event<exn>()
     let statusIcons: Map<string, WindowIcon> = Assets.loadIcons ()
-    let tray = new TrayIcon()
+    let tray = new TrayIcon() // fsharplint:disable-line RedundantNewKeyword
 
     let mutable persistentMenuItems: NativeMenuItem seq = seq { }
 
