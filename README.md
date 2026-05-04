@@ -12,23 +12,28 @@ currently supports:
 - Reconnect to GlazeWM (e.g. if GlazeWM quit unexpectedly).
 - Refresh it's status - this could happen if you have a shortcut that performs several tasks (e.g. switch to workspace
   and pause) GlazeWM does not send event for every task so some state might be be lost.
+- A Gui for querying _GlazeWM_ (e.g., `query workspaces`) and displaying the result in a TreeView.
+- Left click on the tray icon to open the Gui (on _MacOS_ click on the icon and select _Show/hide Main Window_).
+
+Since version `3.10` _GlazeWM_ runs on _MacOS_, so this app also runs on _MacOS_, but tested only lightly.
 
 ### Installation
 
 GlazeWM-Tray can be downloaded from the [releases page][releases] as a zip file - make sure you download the
-architecture that matches your system. It is also available in my private [Scoop][] [bucket][] (
-the [bucket's readme][bucket] contains instructions and lists the available manifests).
+architecture that matches your system.
 
-If downloaded manually, just extract the zip to some directory, optionally create a link for GlazeWM-Tray.exe and run.
-It's also possible to add it to GlazeWM's `startup_commands` and `shutdown_commands` (similar to the _Zebar_ example).
+On _Windows_, extract the zip to some directory, optionally create a link for GlazeWM-Tray.exe. Once running for the
+first time, open the tray area and drag the icon to the taskbar. It should be visible on the taskbar from now on.
 
-Once running for the first time, open the tray area and drag the icon to the taskbar. It should be visible on the
-taskbar from now on.
+On _MacOS_, extract the zip and copy to your _Applications_ folder.
+
+For windows, it is also available in my private [Scoop][] [bucket][] ( the [bucket's readme][bucket] contains
+instructions and lists the available manifests). It's also possible to add it to GlazeWM's `startup_commands` and
+`shutdown_commands` (similar to the _Zebar_ example).
 
 ### Planned Features
 
-The main feature I want to implement is visualisation of currently active workspaces and windows with partial data.
-Other than that, I may later implement a free query input with nicely rendered output (e.g. foldable json).
+There will be more tools and utilitues to visualize and manipulate windows.
 
 ### Contributing
 
