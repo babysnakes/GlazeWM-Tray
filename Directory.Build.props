@@ -1,9 +1,11 @@
 <Project>
   <PropertyGroup>
-    <Version>0.1.0-beta1</Version>
+    <Version>0.2.0-beta1</Version>
     <WarningsAsErrors>$(WarningsAsErrors);FS0025</WarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <!-- Optional: Fails the build if the lock file is out of sync (good for CI) -->
     <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
+    <!-- This warning does not apply to windows. TODO: what happen after we make it cross platform? -->
+    <NoWarn>$(NoWarn);NU1904</NoWarn>
   </PropertyGroup>
 </Project>

@@ -1,37 +1,71 @@
 ﻿namespace GlazeWM.TrayApp.Helpers
 
-open System
-open System.Runtime.InteropServices
-open Microsoft.Toolkit.Uwp.Notifications
+open System.Diagnostics
+open System.Threading.Tasks
+open MsBox.Avalonia
+open MsBox.Avalonia.Enums
 open Serilog
 open GlazeWM.Tray.Literals
+
 
 [<RequireQualifiedAccess>]
 module Option =
     let tryDo (f: 'T -> unit) =
         function
         | Some x -> f x
-        | None -> Log.Warning("tryDo on None")
+        | None -> Log.Warning($"tryDo on None (type: {typeof<'T>.Name})")
+
+module Operations =
+    let openDirectory path =
+        let startInfo = ProcessStartInfo(path)
+        startInfo.UseShellExecute <- true
+        Process.Start(startInfo) |> ignore
 
 module Notifications =
-    /// Send Windows toast basic notification
-    let sendNotification title body =
-        ToastContentBuilder().AddText(title).AddText(body).Show()
+    let private openUri uri =
+        try
+            Process.Start(ProcessStartInfo(uri, UseShellExecute = true)) |> ignore
+        with ex ->
+            Log.Error(ex, $"Failed to open uri: {uri}")
 
     let sendBugNotification bug =
-        ToastContentBuilder()
-            .AddText("You encountered a bug!")
-            .AddText(
-                $"Please report the bug and specify the reason ({bug}). You can also attach log.txt from the logs directory."
-            )
-            .AddButton(ToastButton().SetContent("Report the bug").SetProtocolActivation(Uri(BugUrl)))
-            .Show()
+        Log.Error($"Bug: {bug}")
+        let title = "You encountered a bug!"
+        let body =
+            $"Please report the bug and specify the reason ({bug}). \
+              You can also attach log.txt from the logs directory. \
+              \n\n\
+              Do you want to open the bug report page?"
 
-    /// Define the Win32 MessageBox function
-    [<DllImport("user32.dll", CharSet = CharSet.Unicode)>]
-    extern int MessageBoxW(nativeint hWnd, string text, string caption, uint32 type')
+        async {
+            try
+                let! result =
+                    Avalonia.Threading.Dispatcher.UIThread.InvokeAsync<ButtonResult>(fun () ->
+                        let box =
+                            MessageBoxManager.GetMessageBoxStandard(title, body, ButtonEnum.YesNo, Icon.Error)
 
-    /// Send Windows native error message box
+                        box.ShowAsync())
+                    |> Async.AwaitTask
+
+                if result = ButtonResult.Yes then openUri BugUrl
+            with ex ->
+                Log.Error(ex, "Failed to show error message box")
+
+        }
+        |> Async.Start
+
+    /// Send error message box
     let showErrorMessage (title: string) (message: string) =
-        // 0x00040010u is MB_ICONERROR + MB_TOPMOST
-        MessageBoxW(nativeint 0, message, title, 0x00040010u) |> ignore
+        async {
+            try
+                do!
+                    Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(fun () ->
+                        let box =
+                            MessageBoxManager.GetMessageBoxStandard(title, message, ButtonEnum.Ok, Icon.Error)
+
+                        box.ShowAsync() :> Task)
+                    |> Async.AwaitTask
+            with ex ->
+                Log.Error(ex, "Failed to show error message box")
+        }
+        |> Async.Start

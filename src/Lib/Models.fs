@@ -1,6 +1,7 @@
 ﻿namespace GlazeWM.Tray.Models
 
 open System
+open FSharp.Data
 open FsToolkit.ErrorHandling
 
 type WorkspaceName = { Name: string; DisplayName: string }
@@ -44,12 +45,15 @@ type BindingModesChangedEventData = { NewBindingModes: BindingMode list }
 
 type BindingModesChangedEvent = { Data: BindingModesChangedEventData }
 
-type AppNotification =
-    | RefreshState
+type ParsingOutput =
     | Workspaces of WorkspacesNotification
     | Paused of bool
     | NewBindingModes of bool
     | UnSuccessfulResponse of string
+
+type GlazeWMRawResponse =
+    | Data of JsonValue
+    | ErrorMsg of string
 
 module WorkspaceResponse =
     open Farse

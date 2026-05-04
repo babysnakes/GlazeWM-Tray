@@ -1,157 +1,48 @@
 ﻿namespace GlazeWM.TrayApp.Application
 
 open System
-open System.Reflection
 open Avalonia
 open Avalonia.Controls
 open Avalonia.Controls.ApplicationLifetimes
-open Avalonia.FuncUI.Hosts
-open Avalonia.FuncUI
-open Avalonia.FuncUI.DSL
-open Avalonia.Layout
-open Avalonia.Styling
+open Avalonia.Controls.Notifications
 open Avalonia.Themes.Fluent
-open Serilog
-open Serilog.Core
 open GlazeWM.Tray.Literals
-open GlazeWM.Tray.MessageParser
+open GlazeWM.TrayApp.Models
+open Huskui.Avalonia
+open Serilog
 open GlazeWM.Tray.Models
-open GlazeWM.Tray.WebSocketClient
+open GlazeWM.TrayApp
 open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
-open System.Diagnostics
+open GlazeWM.TrayApp.Views
 
-module Main =
-    let version =
-        Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-        |> Option.ofObj
-        |> Option.map (fun a -> a.InformationalVersion)
-        |> Option.defaultValue "0.0-error"
-        // Optional: Remove the Git commit hash often appended in .NET 8+
-        |> fun v -> v.Split('+')[0]
-
-    let view () =
-        Component(fun _ ->
-            DockPanel.create
-                [ DockPanel.children
-                      [ // Footer text docked to the bottom
-                        TextBlock.create
-                            [ DockPanel.dock Dock.Bottom
-                              TextBlock.margin (0.0, 0.0, 0.0, 20.0)
-                              TextBlock.fontSize 12.0
-                              TextBlock.horizontalAlignment HorizontalAlignment.Center
-                              TextBlock.opacity 0.5
-                              TextBlock.text "To close: ESC or ENTER or CTRL+W" ]
-
-                        StackPanel.create
-                            [ StackPanel.verticalAlignment VerticalAlignment.Center
-                              StackPanel.children
-                                  [ TextBlock.create
-                                        [ TextBlock.fontSize 48.0
-                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                          TextBlock.text "GlazeWM Tray" ]
-                                    TextBlock.create
-                                        [ TextBlock.fontSize 18.0
-                                          TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                          TextBlock.opacity 0.6
-                                          TextBlock.text $"Version {version}" ] ] ] ] ])
-
-
-type MainWindow() =
-    inherit HostWindow()
-
-    do
-        base.Title <- "GlazeWM Tray"
-        base.Width <- 600
-        base.Height <- 400
-        base.Content <- Main.view ()
-
-    override this.OnKeyDown(e: Avalonia.Input.KeyEventArgs) =
-        base.OnKeyDown(e)
-
-        let isCtrlW =
-            e.Key = Avalonia.Input.Key.W
-            && e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control)
-
-        if e.Key = Avalonia.Input.Key.Escape || e.Key = Avalonia.Input.Key.Enter || isCtrlW then
-            this.Close()
-
-    override this.OnClosing(e: WindowClosingEventArgs) =
-        this.Hide()
-        e.Cancel <- true
-        base.Hide()
-
-type private TrayIconState =
-    { Workspaces: WorkspacesNotification
-      Paused: bool
-      CustomBinding: bool
-      Refresh: bool }
-
-module Assets =
-    let internal loadIcons () : Map<string, WindowIcon> =
-        let ids = [ yield! [ 0..9 ] |> List.map string; "qm" ]
-        let themes = [ "w"; "b"; "g" ]
-
-        [ for id in ids do
-              for theme in themes -> $"icon-{id}-{theme}" ]
-        |> List.append [ "icon"; "error" ]
-        |> List.map (fun name -> name, WindowIcon(System.IO.Path.Combine("Assets", $"{name}.ico")))
-        |> Map.ofList
-
-type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
+type App(config: AppConfig) as this =
     inherit Application()
 
-    let uri = Uri("ws://localhost:6123/")
-    let statusIcons: Map<string, WindowIcon> = Assets.loadIcons ()
-    let tray = new TrayIcon()
-    let mutable disconnected: bool = false
-    let mutable parser: Parser option = None // Just to avoid GC on MessageParser
-    let mutable wsClient: WebSocketClient option = None
+    let trayItem = TrayItem(config)
 
-    let emptyState =
-        { Workspaces =
-            { Current =
-                { Name = "?"
-                  DisplayName = "Unknown Workspace" }
-              Active = [] }
-          Paused = false
-          CustomBinding = false
-          Refresh = false }
-
-    /// logic for matching state to icon
-    let matchStateToIcon (state: TrayIconState) =
-        let isDarkTheme = this.ActualThemeVariant = ThemeVariant.Dark
-        let bw = if isDarkTheme then "w" else "b"
-        let theme = if (state.Paused || state.CustomBinding) then "g" else bw
-
-        let name =
-            if state.CustomBinding then
-                "qm"
-            else
-                state.Workspaces.Current.Name
-
-        let key = $"icon-{name}-{theme}"
-        statusIcons |> Map.tryFind key |> Option.defaultValue statusIcons["icon-qm-g"]
+    let mutable connection: GlazeWMConnection option = None
+    let mutable mainWindow: MainWindow option = None
 
     /// Toggle show/hide of the main window
-    let toggleMainWindow (desktopLifetime: IClassicDesktopStyleApplicationLifetime) =
-        match desktopLifetime.MainWindow with
-        | null ->
-            let w = MainWindow()
-            desktopLifetime.MainWindow <- w
-            w.Show()
-        | w when w.IsVisible |> not ->
+    let toggleMainWindow () =
+        match mainWindow with
+        | None ->
+            Log.Error("MainWindow is None")
+            sendBugNotification "Null MainWindow"
+            showErrorMessage "App Error" "MainWindow is null, please restart the application"
+        | Some w when w.IsVisible |> not ->
             w.Show()
 
             if w.WindowState = WindowState.Minimized then
                 w.WindowState <- WindowState.Normal
 
             w.Activate()
-        | w -> w.Hide()
+        | Some w -> w.Hide()
 
     let cleanup (tray: TrayIcon) =
         Log.Information("Shutting down...")
-        wsClient |> Option.iter (fun c -> (c :> IDisposable).Dispose())
+        connection |> Option.iter (fun c -> (c :> IDisposable).Dispose())
         tray.IsVisible <- false
 
     /// Resets both the `parser` and `wsClient` references and prints an error message to the user.
@@ -162,15 +53,14 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
               'Reinitialize GlazeWM Connection' from the tray menu."
 
         showErrorMessage "GlazeWM Communication Error" text
-        Log.Error("A websocket client exception had occured: {Err}", msg)
-        disconnected <- true
+        trayItem.OnCommunicationError()
 
-        Avalonia.Threading.Dispatcher.UIThread.Post(fun () ->
-            this.UpdateTrayMenu []
-            tray.Icon <- statusIcons |> Map.find "error")
-
-        parser <- None
-        wsClient <- None
+    let handleConnectionNotification notification =
+        match notification with
+        | ConnectionError msg -> handleCommunicationError msg
+        | Reconnected -> trayItem.Handle(SetReInitializeMenuEnabled false)
+        | BugNoCurrentWorkspace -> sendBugNotification "No current workspace"
+        | BugUnsetWsClient -> sendBugNotification "Unset wsClient"
 
     let handleAgentError (ex: Exception) =
         let text =
@@ -179,169 +69,79 @@ type App(levelSwitch: LoggingLevelSwitch, logDir: string) as this =
         Log.Error(ex, "TrayIcon agent error:")
         showErrorMessage "TrayIcon Agent Error" text
 
-    let handleMessageParserEvent (msg: MessageParserEvent) =
-        match msg with
-        | ParseError s -> Log.Error("A parser exception had occured: {Err}", s)
-        | NoCurrentWorkspace -> sendBugNotification NoCurrentWorkspace
-        | UnsetWsClient -> sendBugNotification UnsetWsClient
-        | AgentError ex ->
-            Log.Error(ex, "MessageParser agent error:")
-            handleCommunicationError $"MessageParser: {ex.Message}"
+    let runSyncQuery query =
+        match connection with
+        | Some c -> c.RunSyncQuery query
+        | None -> Error "BUG: Connection is None"
 
-    let openLogsDir _ =
-        let startInfo = ProcessStartInfo(logDir)
-        startInfo.UseShellExecute <- true
-        Process.Start(startInfo) |> ignore
+    let handleTrayMenuEvent (e: MenuEvent) : Unit =
+        match e with
+        | ReconnectRequested -> connection |> Option.tryDo _.Reconnect()
+        | RefreshRequested -> connection |> Option.tryDo _.RefreshState()
+        | ToggleMainWindow -> toggleMainWindow ()
+        | Notify(title, body) -> mainWindow |> Option.tryDo _.Notify(title, body)
+        | SwitchWorkspace workspaceName ->
+            connection
+            |> Option.tryDo (fun c -> c.Send $"{CFocusWorkspacePrefix} {workspaceName.Name}")
 
     let agent =
-        MailboxProcessor<AppNotification>.Start(fun inbox ->
-            let rec loop (state: TrayIconState) =
+        MailboxProcessor<ParsingOutput>.Start(fun inbox ->
+            let rec loop () =
                 async {
                     let! msg = inbox.Receive()
 
-                    let! newState =
-                        (Avalonia.Threading.Dispatcher.UIThread
-                            .InvokeAsync(fun () ->
-                                let st =
-                                    match msg with
-                                    | Workspaces wn -> { state with Workspaces = wn }
-                                    | RefreshState ->
-                                        wsClient
-                                        |> Option.tryDo (fun c ->
-                                            [ QWorkspaces; QBinding; QPaused ] |> List.iter c.SendMessage)
+                    match msg with
+                    | Workspaces wn -> trayItem.Handle(WorkspacesChanged wn)
+                    | Paused p -> trayItem.Handle(PausedChanged p)
+                    | NewBindingModes cb -> trayItem.Handle(BindingModesChanged cb)
+                    | UnSuccessfulResponse msg ->
+                        Log.Error("Unsuccessful Response: {Message}", msg)
+                        mainWindow
+                        |> Option.tryDo (fun w ->
+                            w.Notify("Unsuccessful Response from GlazeWM", $"{msg}", NotificationType.Error))
 
-                                        { state with Refresh = true }
-                                    | Paused p -> { state with Paused = p }
-                                    | NewBindingModes cb -> { state with CustomBinding = cb }
-                                    | UnSuccessfulResponse msg ->
-                                        sendNotification "Unsuccessful Response from GlazeWM" $"{msg}"
-                                        state
-
-                                if st.Refresh then
-                                    emptyState
-                                else
-                                    if st <> state then
-                                        Log.Debug("Refreshing tray icon with: {State}", st)
-                                        tray.Icon <- matchStateToIcon st
-                                        tray.ToolTipText <- $"Workspace {st.Workspaces.Current.DisplayName}"
-
-                                    if st.Workspaces.Active <> state.Workspaces.Active then
-                                        Log.Debug("Refreshing tray Menu with: {Active}", st.Workspaces.Active)
-                                        this.UpdateTrayMenu st.Workspaces.Active
-
-                                    st)
-                            .GetTask()
-                         |> Async.AwaitTask)
-
-                    return! loop newState
+                    return! loop ()
                 }
 
-            loop emptyState)
+            loop ())
 
     member private _.InitGlazeConnection() =
-        let parser' = Parser(agent)
-        let client = new WebSocketClient(uri, parser'.Dispatcher())
-        parser'.SetWsClient client.Agent
-        parser <- Some parser'
-        wsClient <- Some client
-        // If we're connected, we can disable the reconnection menu item
-        disconnected <- false
+        let connection' = new GlazeWMConnection(config, agent)
+        connection <- Some connection'
+        connection'.Notifications.Add(handleConnectionNotification)
 
-        client.Error.Add(handleCommunicationError)
-        parser'.Error.Add(handleMessageParserEvent)
+        connection'.RefreshState()
 
-        $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}"
-        |> client.SendMessage
+    override _.Initialize() =
+        this.Styles.Add(FluentTheme())
+        this.Styles.Add(HuskuiTheme())
+        this.Styles.Add(AppStyles())
 
-        agent.Post RefreshState
-
-    member private _.UpdateTrayMenu(wss: WorkspaceName list) =
-        match this.ApplicationLifetime with
-        | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
-            let menu = NativeMenu()
-            let aboutItem = NativeMenuItem(Header = "About")
-            aboutItem.Click.Add(fun _ -> toggleMainWindow desktopLifetime)
-
-            let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
-            openLogsMenu.Click.Add(openLogsDir)
-
-            let toggleDebug =
-                NativeMenuItem(Header = "Verbose Logging", ToggleType = NativeMenuItemToggleType.CheckBox)
-
-            toggleDebug.IsChecked <- false
-
-            toggleDebug.Click.Add(fun _ ->
-                if toggleDebug.IsChecked then
-                    levelSwitch.MinimumLevel <- Events.LogEventLevel.Debug
-                else
-                    levelSwitch.MinimumLevel <- Events.LogEventLevel.Information)
-
-            let quitItem = NativeMenuItem(Header = "Quit")
-            quitItem.Click.Add(fun _ -> desktopLifetime.Shutdown(0))
-
-            let rmi = NativeMenuItem(Header = "Reinitialize GlazeWM Connection")
-            rmi.IsEnabled <- disconnected
-
-            rmi.Click.Add(fun _ ->
-                sendNotification "Reinitializing GlazeWM Connection" "Attempting to reconnect..."
-                this.InitGlazeConnection())
-
-            let refreshItem = NativeMenuItem(Header = "Refresh")
-            refreshItem.Click.Add(fun _ -> agent.Post RefreshState)
-
-            wss
-            |> List.iter (fun m ->
-                let dn =
-                    if m.Name = m.DisplayName then
-                        $"Workspace {m.Name}"
-                    else
-                        m.DisplayName
-
-                let item = NativeMenuItem(Header = $"{m.Name} - {dn}")
-
-                item.Click.Add(fun _ ->
-                    wsClient
-                    |> Option.tryDo (fun c -> $"{CFocusWorkspacePrefix} {m.Name}" |> SendMessage |> c.Agent.Post))
-
-                menu.Items.Add(item))
-
-            menu.Items.Add(NativeMenuItemSeparator())
-            menu.Items.Add(openLogsMenu)
-            menu.Items.Add(toggleDebug) // Add it to your menu
-            menu.Items.Add(NativeMenuItemSeparator())
-            menu.Items.Add(rmi)
-            menu.Items.Add(refreshItem)
-            menu.Items.Add(aboutItem)
-            menu.Items.Add(quitItem)
-            tray.Menu <- menu
-        | _ -> ()
-
-    override _.Initialize() = this.Styles.Add(FluentTheme())
-
-    override _.OnFrameworkInitializationCompleted() =
 #if DEBUG
-        if Debugger.IsAttached then this.AttachDevTools()
+        this.AttachDeveloperTools() |> ignore
 #endif
 
+    override _.OnFrameworkInitializationCompleted() =
         match this.ApplicationLifetime with
         | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
             // Make shut down explicit, Don't shut down when closing the main window
             desktopLifetime.ShutdownMode <- ShutdownMode.OnExplicitShutdown
-            tray.ToolTipText <- "Workspace ?"
-            this.UpdateTrayMenu []
-            // tray.Clicked.Add(fun _ -> toggleMainWindow desktopLifetime) // there's noting there currently ...
-            let app_icon = statusIcons |> Map.find "icon"
-            tray.Icon <- app_icon
+            let w = MainWindow runSyncQuery
+            mainWindow <- Some w
+            trayItem.Initialize()
+            let tray = trayItem.Tray
             let icons = TrayIcons()
             icons.Add(tray)
             TrayIcon.SetIcons(this, icons)
             agent.Error.Add(handleAgentError)
             this.InitGlazeConnection()
+            trayItem.ErrorEvent.Add handleAgentError
+            trayItem.MenuEvent.Add handleTrayMenuEvent
 
             this.ActualThemeVariantChanged.Add(fun _ ->
                 Log.Debug("Theme variant changed, new variant is {Variant}", this.ActualThemeVariant)
                 // trigger recalculation of the icon
-                agent.Post RefreshState)
+                connection |> Option.tryDo _.RefreshState())
 
             desktopLifetime.Exit.Add(fun _ -> cleanup tray)
             tray.IsVisible <- true

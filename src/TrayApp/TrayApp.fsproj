@@ -1,24 +1,28 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType Condition="'$(Configuration)' == 'Debug'">Exe</OutputType>
-    <OutputType Condition="'$(Configuration)' != 'Debug'">WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <OutputType Condition="'$(Configuration)' != 'Debug' AND $([MSBuild]::IsOSPlatform('windows'))">WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>GlazeWM-Tray</AssemblyName>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="$([MSBuild]::IsOSPlatform('windows'))">app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>link</TrimMode>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <BuiltInComInteropSupport Condition="$([MSBuild]::IsOSPlatform('windows'))">true</BuiltInComInteropSupport>
+    <ApplicationIcon Condition="$([MSBuild]::IsOSPlatform('windows'))">Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <TrimmerRootAssembly Include="Microsoft.Toolkit.Uwp.Notifications" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <Compile Include="Icons.fs" />
     <Compile Include="Helpers.fs" />
+    <Compile Include="Models.fs" />
+    <Compile Include="AboutPanel.fs" />
+    <Compile Include="QueryPanel.fs" />
+    <Compile Include="MainView.fs" />
+    <Compile Include="Styles\AppStyles.fs" />
+    <Compile Include="GlazeWMConnection.fs" />
+    <Compile Include="TrayItem.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
     <Content Include="Assets\*.ico">
@@ -35,12 +39,11 @@
     <PackageReference Include="Avalonia.FuncUI" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Fonts.Inter" />
-    <PackageReference Include="Avalonia.Diagnostics">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" />
-    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Serilog.Sinks.Console" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" />
+    <PackageReference Include="Huskui.Avalonia" />
+    <PackageReference Include="MessageBox.Avalonia" />
+    <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Tmds.DBus.Protocol" /> <!-- Tmds.DBus.Protocol CVE pin; transitive via Avalonia for Linux -->
   </ItemGroup>
 </Project>

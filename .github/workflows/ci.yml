@@ -11,12 +11,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # we need it to compare app.manifest versions
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
 
       - name: Install Just
         uses: MinoruSekine/setup-scoop@v4.0.2
@@ -26,40 +28,41 @@ jobs:
       - name: Run CI tasks
         run: just ci
 
-#      - name: Check app.manifest assemblyIdentity version was manually bumped
-#        if: github.event_name == 'pull_request'
-#        shell: pwsh
-#        run: |
-#          $ErrorActionPreference = 'Stop'
-#
-#          $manifestPath = "src/TrayApp/app.manifest"
-#
-#          function Get-AssemblyIdentityVersion([string]$xmlText) {
-#            $xml = [xml]$xmlText
-#
-#            # Default namespace in manifests requires a namespace manager.
-#            $nsmgr = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
-#            $nsmgr.AddNamespace("asm", "urn:schemas-microsoft-com:asm.v1")
-#
-#            $node = $xml.SelectSingleNode("/asm:assembly/asm:assemblyIdentity", $nsmgr)
-#            if (-not $node) { throw "Could not find <assemblyIdentity> in '$manifestPath'." }
-#
-#            $v = $node.GetAttribute("version")
-#            if ([string]::IsNullOrWhiteSpace($v)) { throw "<assemblyIdentity> has no version attribute in '$manifestPath'." }
-#
-#            return $v.Trim()
-#          }
-#
-#          if (-not (Test-Path $manifestPath)) { throw "Manifest not found at '$manifestPath' in PR." }
-#          $prXml = Get-Content -Raw -Encoding UTF8 $manifestPath
-#          $prVersion = Get-AssemblyIdentityVersion $prXml
-#
-#          $mainXml = git show "origin/main:$manifestPath"
-#          $mainVersion = Get-AssemblyIdentityVersion $mainXml
-#
-#          Write-Host "PR manifest version:   $prVersion"
-#          Write-Host "Main manifest version: $mainVersion"
-#
-#          if ($prVersion -eq $mainVersion) {
-#            throw "Manual version bump required: '$manifestPath' assemblyIdentity version is unchanged from main ($prVersion)."
-#          }
+      - name: Check app.manifest assemblyIdentity version was manually bumped
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $manifestPath = "src/TrayApp/app.manifest"
+
+          function Get-AssemblyIdentityVersion([string]$xmlText) {
+            $xml = [xml]$xmlText
+
+            # Default namespace in manifests requires a namespace manager.
+            $nsmgr = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+            $nsmgr.AddNamespace("asm", "urn:schemas-microsoft-com:asm.v1")
+
+            $node = $xml.SelectSingleNode("/asm:assembly/asm:assemblyIdentity", $nsmgr)
+            if (-not $node) { throw "Could not find <assemblyIdentity> in '$manifestPath'." }
+
+            $v = $node.GetAttribute("version")
+            if ([string]::IsNullOrWhiteSpace($v)) { throw "<assemblyIdentity> has no version attribute in '$manifestPath'." }
+
+            return $v.Trim()
+          }
+
+          if (-not (Test-Path $manifestPath)) { throw "Manifest not found at '$manifestPath' in PR." }
+          $prXml = Get-Content -Raw -Encoding UTF8 $manifestPath
+          $prVersion = Get-AssemblyIdentityVersion $prXml
+
+          $mainXml = (git show "origin/main:$manifestPath") -join "`n"
+          $mainXml = $mainXml.TrimStart([char]0xFEFF)
+          $mainVersion = Get-AssemblyIdentityVersion $mainXml
+
+          Write-Host "PR manifest version:   $prVersion"
+          Write-Host "Main manifest version: $mainVersion"
+
+          if ($prVersion -eq $mainVersion) {
+            throw "Manual version bump required: '$manifestPath' assemblyIdentity version is unchanged from main ($prVersion)."
+          }

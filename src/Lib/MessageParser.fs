@@ -33,7 +33,7 @@ type private MessageType =
 
 type private MessageTypeResult = Result<MessageType option, string>
 
-type Parser(handler: MailboxProcessor<AppNotification>) =
+type Parser(handler: MailboxProcessor<ParsingOutput>) =
 
     let errorEvent = Event<MessageParserEvent>()
     let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
@@ -255,3 +255,18 @@ type Parser(handler: MailboxProcessor<AppNotification>) =
         agent
 
     member this.SetWsClient(client: MailboxProcessor<WebSocketMessage>) = wsClient <- Some client
+
+module CustomParsers =
+    open FSharp.Data
+    open JsonExtensions
+
+    let private extractResponseData (json: string) =
+        let jsonData = JsonValue.Parse(json)
+        let success = jsonData?success.AsBoolean()
+        if success then
+            Data jsonData?data
+        else
+            ErrorMsg(jsonData?error.AsString())
+
+    let tryExtractResponseData json =
+        Result.tryCatch (fun () -> extractResponseData json)

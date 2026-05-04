@@ -3,37 +3,37 @@
 open System
 open System.IO
 open Avalonia
+open GlazeWM.TrayApp.Models
 open Serilog
-open Serilog.Core
-open Serilog.Events
 open GlazeWM.TrayApp.Application
 
 module Program =
 
     let mkApp () =
-        let logDir =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GlazeWM-Tray", "logs")
-
-        if not <| Directory.Exists(logDir) then
-            Directory.CreateDirectory(logDir) |> ignore
-
-        let levelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
+        let config = AppConfig.load ()
 #if DEBUG
-        Log.Logger <- LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).WriteTo.Console().CreateLogger()
+        Log.Logger <-
+            LoggerConfiguration().MinimumLevel.ControlledBy(config.LevelSwitch).WriteTo.Console().CreateLogger()
 #else
-        let logPath = Path.Combine(logDir, "log.txt")
+        let logPath = Path.Combine(config.LogsDirectory, "log.txt")
 
         Log.Logger <-
             LoggerConfiguration()
-                .MinimumLevel.ControlledBy(levelSwitch)
+                .MinimumLevel.ControlledBy(config.LevelSwitch)
                 .WriteTo.File(logPath, fileSizeLimitBytes = 100_000, retainedFileCountLimit = 10)
                 .CreateLogger()
 #endif
-        App(levelSwitch, logDir)
+        App(config)
 
     [<CompiledName "BuildAvaloniaApp">]
     let buildAvaloniaApp () =
-        AppBuilder.Configure<App>(fun _ -> mkApp ()).LogToTrace().UsePlatformDetect().UseSkia().WithInterFont()
+        AppBuilder
+            .Configure<App>(fun _ -> mkApp ())
+            .LogToTrace()
+            .UsePlatformDetect()
+            .UseSkia()
+            .WithInterFont()
+            .With(MacOSPlatformOptions(ShowInDock = false))
 
     [<EntryPoint; STAThread>]
     let main (args: string[]) =

@@ -489,3 +489,6 @@ resources/generated/
 
 # Build output
 /output/
+
+# claude settings
+/.claude/
