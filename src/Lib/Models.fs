@@ -1,8 +1,15 @@
 ﻿namespace GlazeWM.Tray.Models
 
 open System
+open Farse
+open Farse.Operators
 open FSharp.Data
 open FsToolkit.ErrorHandling
+
+/// `WebSocketClient` must implement this interface
+type IWsClient =
+    abstract member ReceivedMessages: IObservable<string>
+    abstract member SendMessage: msg: string -> unit
 
 type WorkspaceName = { Name: string; DisplayName: string }
 
@@ -45,19 +52,20 @@ type BindingModesChangedEventData = { NewBindingModes: BindingMode list }
 
 type BindingModesChangedEvent = { Data: BindingModesChangedEventData }
 
-type ParsingOutput =
+type ParsedMessages =
     | Workspaces of WorkspacesNotification
     | Paused of bool
     | NewBindingModes of bool
-    | UnSuccessfulResponse of string
 
 type GlazeWMRawResponse =
     | Data of JsonValue
     | ErrorMsg of string
 
 module WorkspaceResponse =
-    open Farse
-    open Farse.Operators
+
+    let empty: WorkspacesResponse =
+        let data = { Workspaces = [] }
+        { Data = data }
 
     let workspaceParser =
         parser {
@@ -126,9 +134,21 @@ module WorkspaceResponse =
             let wn = current |> extractWorkspaceName
             { Active = active; Current = wn })
 
+module FocusChangedEventData =
+
+    // Tries to parse the focused window. Assumes a successful response.
+    let windowParser =
+        parser {
+            let! containerType = "data.focusedContainer.type" &= Parse.string
+
+            if containerType = "window" then
+                let! parentId = "data.focusedContainer.parentId" &= Parse.guid
+                return Some parentId
+            else
+                return None
+        }
+
 module BindingModeQueryResponse =
-    open Farse
-    open Farse.Operators
     open Farse.Parse
 
     let bmParser =
@@ -150,8 +170,6 @@ module BindingModeQueryResponse =
         }
 
 module BindingModesChangedEvent =
-    open Farse
-    open Farse.Operators
     open Farse.Parse
 
     let bmParser =
@@ -173,8 +191,6 @@ module BindingModesChangedEvent =
         }
 
 module PauseChangedEvent =
-    open Farse
-    open Farse.Operators
     open Farse.Parse
 
     let dataParser =

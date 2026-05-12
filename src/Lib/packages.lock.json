@@ -11,6 +11,16 @@
           "FSharp.Core": "8.0.100"
         }
       },
+      "FSharp.Control.Reactive": {
+        "type": "Direct",
+        "requested": "[6.1.2, )",
+        "resolved": "6.1.2",
+        "contentHash": "r6e9sj6dssFTZVFd9xqhXKN8VAWqMdGdK1X6JVjy66EIvKUI7DGkkesPx1gp9svrBx/6fgJPsl29STRxuBjXpw==",
+        "dependencies": {
+          "FSharp.Core": "6.0.7",
+          "System.Reactive": "6.0.1"
+        }
+      },
       "FSharp.Data": {
         "type": "Direct",
         "requested": "[8.1.7, )",
@@ -41,6 +51,12 @@
         "requested": "[4.3.1, )",
         "resolved": "4.3.1",
         "contentHash": "savYe7h5yRlkqBVOwP8cIRDOdqKiPmYCU4W87JH38sBmcKD5EBoXvQIw6bNEvZ/pTe1gsiye3VFCzBsoppGkXQ=="
+      },
+      "System.Reactive": {
+        "type": "Direct",
+        "requested": "[6.1.0, )",
+        "resolved": "6.1.0",
+        "contentHash": "M5cCC1ZMkZr9jbSQGTHnVkb5TDN67qWCV7AP8TAHdGkvDlu0puT5NzemESNn9+HkYIDpWpocP68/i+/ame2/2w=="
       },
       "FSharp.Core": {
         "type": "Transitive",

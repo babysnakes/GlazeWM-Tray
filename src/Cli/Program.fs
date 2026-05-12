@@ -1,5 +1,7 @@
 ﻿// For more information see https://aka.ms/fsharp-console-apps
 open System
+open System.Reactive.Disposables
+open System.Reactive.Disposables.Fluent
 open GlazeWM.Tray.Literals
 open Serilog
 open Serilog.Core
@@ -10,48 +12,41 @@ open GlazeWM.Tray.WebSocketClient
 
 let levelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
 Log.Logger <- LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).WriteTo.Console().CreateLogger()
+let mutable failureOccured = false
 
-let demoHandler =
-    MailboxProcessor.Start(fun (inbox: MailboxProcessor<ParsingOutput>) ->
-        let rec loop () =
-            async {
-                let! msg = inbox.Receive()
+let handleErrorMessage (msg: obj) =
+    Log.Error("Error occurred in websocket client: {Message}", msg)
+    failureOccured <- true
 
-                match msg with
-                | Workspaces wn ->
-                    Log.Information(
-                        "Current workspace: {Name}, {DisplayName}. Active workspaces: {Active}",
-                        wn.Current.Name,
-                        wn.Current.DisplayName,
-                        wn.Active |> List.map (fun w -> w.Name)
-                    )
-                | Paused b -> Log.Information("Paused: {State}", b)
-                | NewBindingModes b -> Log.Information("New binding modes: {Modes}", b)
-                | UnSuccessfulResponse msg -> Log.Error("Unsuccessful Response: {Message}", msg)
+let handleError (ex: exn) = ex.Message |> handleErrorMessage
 
-                return! loop ()
-            }
+let handleMessages (msg: ParsedMessages) =
+    match msg with
+    | Workspaces wn ->
+        Log.Information(
+            "Current workspace: {Name}, {DisplayName}. Active workspaces: {Active}",
+            wn.Current.Name,
+            wn.Current.DisplayName,
+            wn.Active |> List.map (fun w -> w.Name)
+        )
+    | Paused b -> Log.Information("Paused: {State}", b)
+    | NewBindingModes b -> Log.Information("New binding modes: {Modes}", b)
 
-        loop ())
-
+let compositeD = new CompositeDisposable()
 let args = Environment.GetCommandLineArgs()
 let port = if args.Length > 1 then args[1] else "6123"
 let uri = Uri($"ws://localhost:{port}/")
-let parser = Parser(demoHandler)
-let client = new WebSocketClient(uri, parser.Dispatcher())
-parser.SetWsClient client.Agent
-let mutable failureOccured = false
+let client = new WebSocketClient(uri)
+let parser = new Parser(client)
+
+client.Failures.Subscribe(handleError).DisposeWith(compositeD) |> ignore
+parser.Warnings.Subscribe(handleErrorMessage).DisposeWith(compositeD) |> ignore
+parser.GlazewmMessages.Subscribe(handleMessages).DisposeWith(compositeD)
+|> ignore
 
 [ $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}"
   QWorkspaces ]
-|> List.iter client.SendMessage
-
-// IMPORTANT: listen to error events
-client.Error.Add(fun msg ->
-    Log.Error("Error occurred in websocket client: {Message}", msg)
-    failureOccured <- true)
-
-parser.Error.Add(fun msg -> Log.Error("Error occurred in message parser: {Message}", msg))
+|> List.iter (client :> IWsClient).SendMessage
 
 printfn
     "Type debug/info to set log level, \
@@ -67,7 +62,10 @@ let rec ReadAndSendLoop () =
     let input = Console.ReadLine()
 
     match input.ToLower() with
-    | "exit" -> if not failureOccured then client.Agent.PostAndReply(Exit)
+    | "exit" ->
+        if not failureOccured then
+            compositeD.Dispose()
+            (client :> IDisposable).Dispose()
     | "debug" ->
         levelSwitch.MinimumLevel <- LogEventLevel.Debug
         ReadAndSendLoop()
@@ -81,7 +79,7 @@ let rec ReadAndSendLoop () =
             | Error e -> Log.Error("Error occurred: {Message}", e)
         ReadAndSendLoop()
     | _ ->
-        client.Agent.Post(SendMessage input)
+        (client :> IWsClient).SendMessage input
         ReadAndSendLoop()
 
 ReadAndSendLoop()

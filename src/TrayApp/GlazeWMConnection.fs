@@ -15,7 +15,7 @@ type GlazeWMConnectionNotification =
     | BugNoCurrentWorkspace
     | BugUnsetWsClient
 
-type GlazeWMConnection(config: AppConfig, parserMessageHandler: MailboxProcessor<ParsingOutput>) as this =
+type GlazeWMConnection(config: AppConfig, parserMessageHandler: MailboxProcessor<ParsedMessages>) as this =
     let uri = Uri($"ws://localhost:{config.Port}/")
     let notifications = Event<GlazeWMConnectionNotification>()
 

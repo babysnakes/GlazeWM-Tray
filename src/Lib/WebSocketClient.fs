@@ -2,23 +2,23 @@ namespace GlazeWM.Tray.WebSocketClient
 
 open System
 open System.Net.WebSockets
+open System.Reactive.Linq
+open System.Reactive.Subjects
 open System.Text
 open System.Threading
+open GlazeWM.Tray.Models
 open Serilog
 
 
-type WebSocketMessage =
-    | SendMessage of string
-    | Exit of AsyncReplyChannel<unit>
-
 type SyncMessage = SyncQuery of string * AsyncReplyChannel<Result<string, string>>
 
-type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
+type WebSocketClient(uri: Uri) =
 
     let client = new ClientWebSocket()
     let syncClient = new ClientWebSocket()
     let cts = new CancellationTokenSource()
-    let errorEvent = Event<string>()
+    let receivedMessages = new Subject<string>()
+    let failures = new Subject<exn>()
 
     let readMessage (socket: ClientWebSocket) =
         async {
@@ -45,10 +45,10 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
 
                     if result.MessageType = WebSocketMessageType.Close then
                         Log.Warning "GlazeWM closed the connection."
-                        errorEvent.Trigger("GlazeWM closed the connection.")
+                        Exception("GlazeWM closed the connection.") |> failures.OnNext
                         cts.Cancel()
                     else
-                        parser.Post(jsonString)
+                        receivedMessages.OnNext(jsonString)
 
                 with
                 | :? OperationCanceledException as ex ->
@@ -56,7 +56,7 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
                     raise ex
                 | ex ->
                     Log.Error("Error during message reception: {Ex}", ex)
-                    errorEvent.Trigger(ex.Message)
+                    failures.OnNext(ex)
                     cts.Cancel()
         }
 
@@ -64,53 +64,32 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
     let agent =
         let a =
             MailboxProcessor.Start(
-                (fun inbox ->
+                (fun (inbox: MailboxProcessor<string>) ->
                     async {
                         do! Async.AwaitTask(client.ConnectAsync(uri, cts.Token))
                         Log.Information("Connected to {Url}", uri)
                         Async.Start(listen (), cancellationToken = cts.Token)
 
-                        let rec loop () =
-                            async {
-                                let! msg = inbox.Receive()
+                        while not cts.IsCancellationRequested do
+                            let! msg = inbox.Receive()
+                            let bytes = Encoding.UTF8.GetBytes(msg)
 
-                                match msg with
-                                | SendMessage content ->
-                                    let bytes = Encoding.UTF8.GetBytes(content)
+                            do!
+                                Async.AwaitTask(
+                                    client.SendAsync(
+                                        ArraySegment<byte>(bytes),
+                                        WebSocketMessageType.Text,
+                                        true,
+                                        cts.Token
+                                    )
+                                )
 
-                                    do!
-                                        Async.AwaitTask(
-                                            client.SendAsync(
-                                                ArraySegment<byte>(bytes),
-                                                WebSocketMessageType.Text,
-                                                true,
-                                                cts.Token
-                                            )
-                                        )
-
-                                    Log.Debug("Sent message: {Content}", content)
-                                    return! loop ()
-                                | Exit reply ->
-                                    Log.Information "Shutting down client..."
-
-                                    do!
-                                        Async.AwaitTask(
-                                            client.CloseAsync(
-                                                WebSocketCloseStatus.NormalClosure,
-                                                "Client initiated close",
-                                                cts.Token
-                                            )
-                                        )
-
-                                    reply.Reply()
-                            }
-
-                        do! loop ()
+                            Log.Debug("Sent message: {Content}", msg)
                     }),
                 cancellationToken = cts.Token
             )
 
-        a.Error.Add(fun ex -> errorEvent.Trigger(ex.Message))
+        a.Error.Subscribe(failures) |> ignore
         a
 
     let syncAgent =
@@ -120,50 +99,51 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
                     async {
                         do! Async.AwaitTask(syncClient.ConnectAsync(uri, cts.Token))
 
-                        let rec loop () =
-                            async {
-                                let! (SyncQuery(query, reply)) = inbox.Receive()
+                        while not cts.IsCancellationRequested do
+                            let! (SyncQuery(query, reply)) = inbox.Receive()
+                            let bytes = Encoding.UTF8.GetBytes(query)
 
-                                try
-                                    let bytes = Encoding.UTF8.GetBytes(query)
+                            try
+                                do!
+                                    syncClient.SendAsync(
+                                        ArraySegment<byte>(bytes),
+                                        WebSocketMessageType.Text,
+                                        true,
+                                        cts.Token
+                                    )
+                                    |> Async.AwaitTask
 
-                                    do!
-                                        Async.AwaitTask(
-                                            syncClient.SendAsync(
-                                                ArraySegment<byte>(bytes),
-                                                WebSocketMessageType.Text,
-                                                true,
-                                                cts.Token
-                                            )
-                                        )
+                                let! _, response = readMessage syncClient
+                                Log.Debug("Sync query: query='{Query}', response='{Response}'", query, response)
+                                reply.Reply(Ok response)
+                            with ex ->
+                                Log.Error(ex, "Sync query failed")
+                                reply.Reply(Error ex.Message)
+                                cts.Cancel()
+                                failures.OnNext ex
 
-                                    let! _, response = readMessage syncClient
-                                    Log.Debug("Sync query: query='{Query}', response='{Response}'", query, response)
-                                    reply.Reply(Ok response)
-                                    return! loop ()
-                                with
-                                | :? OperationCanceledException as ex ->
-                                    reply.Reply(Error "Sync client Cancelled")
-                                    raise ex
-                                | ex ->
-                                    Log.Error("Sync query error: {Ex}", ex)
-                                    errorEvent.Trigger(ex.Message)
-                                    reply.Reply(Error ex.Message)
-                                    cts.Cancel()
-                            }
-
-                        do! loop ()
                     }),
                 cancellationToken = cts.Token
             )
 
-        a.Error.Add(fun ex -> errorEvent.Trigger(ex.Message))
+        a.Error.Subscribe(failures) |> ignore
         a
 
-    member _.Agent = agent
+    /// disconnect all connections
+    let disconnect () =
+        let closeAsync (socket: ClientWebSocket) =
+            socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client initiated close", CancellationToken.None)
+            |> Async.AwaitTask
 
-    /// Subscribe to GlazeWM events
-    member _.SendMessage(msg: string) = SendMessage msg |> agent.Post
+        [| closeAsync client; closeAsync syncClient |]
+        |> Async.Parallel
+        |> Async.RunSynchronously
+        |> ignore
+
+        cts.Cancel()
+
+    /// Subscribe to GlazeWM connection errors
+    member _.Failures = failures.AsObservable()
 
     /// Send a query and synchronously wait for a single response. Optionally provide timeout in milliseconds
     /// (default is 5000ms).
@@ -174,19 +154,25 @@ type WebSocketClient(uri: Uri, parser: MailboxProcessor<string>) =
         with :? TimeoutException ->
             let msg = $"Sync query timeout (after {timeout}ms)"
             cts.Cancel()
-            errorEvent.Trigger(msg)
+            Exception(msg) |> failures.OnNext
             Error msg
 
-    [<CLIEvent>]
-    member this.Error = errorEvent.Publish
+    interface IWsClient with
+        /// Subscribe to GlazeWM JSON messages
+        member _.ReceivedMessages = receivedMessages.AsObservable()
+
+        /// Send Async messages to GlazeWM
+        member _.SendMessage msg = agent.Post msg
 
     interface IDisposable with
         member _.Dispose() =
             try
-                cts.Cancel()
+                disconnect ()
             with _ ->
                 ()
 
             client.Dispose()
             syncClient.Dispose()
             cts.Dispose()
+            receivedMessages.OnCompleted()
+            failures.OnCompleted()

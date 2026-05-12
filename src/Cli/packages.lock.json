@@ -94,10 +94,12 @@
       "lib": {
         "type": "Project",
         "dependencies": {
+          "FSharp.Control.Reactive": "[6.1.2, )",
           "FSharp.Data": "[8.1.7, )",
           "Farse": "[0.8.0, )",
           "FsToolkit.ErrorHandling": "[5.2.0, )",
-          "Serilog": "[4.3.1, )"
+          "Serilog": "[4.3.1, )",
+          "System.Reactive": "[6.1.0, )"
         }
       },
       "Farse": {
@@ -107,6 +109,16 @@
         "contentHash": "EEJl5OduRuhB0+c6GgM+sBA0jPUervGVd+KR6a6pHb/29wZ7vjtQGC1+xGhN79th71WKLrhhDqkWoekE6TvDSg==",
         "dependencies": {
           "FSharp.Core": "8.0.100"
+        }
+      },
+      "FSharp.Control.Reactive": {
+        "type": "CentralTransitive",
+        "requested": "[6.1.2, )",
+        "resolved": "6.1.2",
+        "contentHash": "r6e9sj6dssFTZVFd9xqhXKN8VAWqMdGdK1X6JVjy66EIvKUI7DGkkesPx1gp9svrBx/6fgJPsl29STRxuBjXpw==",
+        "dependencies": {
+          "FSharp.Core": "6.0.7",
+          "System.Reactive": "6.0.1"
         }
       },
       "FSharp.Data": {
@@ -133,6 +145,12 @@
         "dependencies": {
           "FSharp.Core": "9.0.300"
         }
+      },
+      "System.Reactive": {
+        "type": "CentralTransitive",
+        "requested": "[6.1.0, )",
+        "resolved": "6.1.0",
+        "contentHash": "M5cCC1ZMkZr9jbSQGTHnVkb5TDN67qWCV7AP8TAHdGkvDlu0puT5NzemESNn9+HkYIDpWpocP68/i+/ame2/2w=="
       }
     }
   }

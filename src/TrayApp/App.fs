@@ -85,7 +85,7 @@ type App(config: AppConfig) as this =
             |> Option.tryDo (fun c -> c.Send $"{CFocusWorkspacePrefix} {workspaceName.Name}")
 
     let agent =
-        MailboxProcessor<ParsingOutput>.Start(fun inbox ->
+        MailboxProcessor<ParsedMessages>.Start(fun inbox ->
             let rec loop () =
                 async {
                     let! msg = inbox.Receive()
