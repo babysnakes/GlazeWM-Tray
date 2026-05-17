@@ -20,23 +20,13 @@ type Workspace =
       ParentId: Guid
       HasFocus: bool }
 
-type Window =
-    { Id: Guid
-      ParentId: Guid
-      Title: string
-      HasFocus: bool }
-
 type WorkspaceResponseData = { Workspaces: Workspace list }
 
 type WorkspacesResponse = { Data: WorkspaceResponseData }
 
-type FocusChangedEventData = { FocusedContainer: Window }
-
 type WorkspacesNotification =
     { Current: WorkspaceName
       Active: WorkspaceName list }
-
-type FocusChangedEvent = { Data: FocusChangedEventData }
 
 type PauseChangedEventData = { IsPaused: bool }
 
@@ -52,7 +42,7 @@ type BindingModesChangedEventData = { NewBindingModes: BindingMode list }
 
 type BindingModesChangedEvent = { Data: BindingModesChangedEventData }
 
-type ParsedMessages =
+type ParsedMessage =
     | Workspaces of WorkspacesNotification
     | Paused of bool
     | NewBindingModes of bool

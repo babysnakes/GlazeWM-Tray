@@ -11,16 +11,16 @@ type GlazeWMClient(uri: Uri) =
 
     /// GlazeWM parsed responses
     member _.GlazeWmMessages = parser.GlazewmMessages
-    
+
     /// Connection failures (should abort on first)
     member _.Failures = wsClient.Failures
-    
+
     /// Parser warnings
     member _.Warnings = parser.Warnings
 
     /// Send message to GlazeWM (Async)
     member _.SendMessage = (wsClient :> IWsClient).SendMessage
-    
+
     /// Send a query to GlazeWM and wait for a single response
     member _.Query = wsClient.Query
 

@@ -166,6 +166,9 @@ type WebSocketClient(uri: Uri) =
 
     interface IDisposable with
         member _.Dispose() =
+            // disconnecting can cause an error to bubble up, so we stop the observables first.
+            receivedMessages.OnCompleted()
+            failures.OnCompleted()
             try
                 disconnect ()
             with _ ->
@@ -174,5 +177,3 @@ type WebSocketClient(uri: Uri) =
             client.Dispose()
             syncClient.Dispose()
             cts.Dispose()
-            receivedMessages.OnCompleted()
-            failures.OnCompleted()

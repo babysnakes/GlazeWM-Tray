@@ -20,7 +20,7 @@ let handleErrorMessage (msg: obj) =
 
 let handleError (ex: exn) = ex.Message |> handleErrorMessage
 
-let handleMessages (msg: ParsedMessages) =
+let handleMessages (msg: ParsedMessage) =
     match msg with
     | Workspaces wn ->
         Log.Information(

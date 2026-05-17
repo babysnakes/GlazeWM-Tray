@@ -16,18 +16,20 @@ type MenuEvent =
     | Notify of string * string
     | SwitchWorkspace of WorkspaceName
 
-type TrayMessage =
-    | WorkspacesChanged of WorkspacesNotification
-    | PausedChanged of bool
-    | BindingModesChanged of bool
-    | ResetState
-    | SetReInitializeMenuEnabled of bool
-
-type private TrayIconState =
+type TrayIconState =
     { Workspaces: WorkspacesNotification
       Paused: bool
-      CustomBinding: bool
-      Reset: bool }
+      CustomBinding: bool }
+
+    static member empty =
+        { Workspaces =
+            { Current =
+                { Name = "?"
+                  DisplayName = "Unknown Workspace" }
+              Active = [] }
+          Paused = false
+          CustomBinding = false }
+
 
 module Assets =
     let internal loadIcons () : Map<string, WindowIcon> =
@@ -44,24 +46,29 @@ type TrayItem(config: AppConfig) =
 
     let reInitializeMenu = NativeMenuItem(Header = "Reinitialize GlazeWM Connection")
     let menuEvent = Event<MenuEvent>()
-    let errorEvent = Event<exn>()
     let statusIcons: Map<string, WindowIcon> = Assets.loadIcons ()
     let tray = new TrayIcon()
 
     let mutable persistentMenuItems: NativeMenuItem seq = seq { }
 
-    let emptyState =
-        { Workspaces =
-            { Current =
-                { Name = "?"
-                  DisplayName = "Unknown Workspace" }
-              Active = [] }
-          Paused = false
-          CustomBinding = false
-          Reset = false }
+    /// logic for matching state to icon
+    let matchStateToIcon (state: TrayIconState) =
+        let mode = Avalonia.Application.Current.ActualThemeVariant
+        let isDarkTheme = mode = ThemeVariant.Dark
+        let bw = if isDarkTheme then "w" else "b"
+        let theme = if (state.Paused || state.CustomBinding) then "g" else bw
 
-    /// One time function to populate the persistent tray menu items
-    let initializePersistentMenuItems () =
+        let name =
+            if state.CustomBinding then
+                "qm"
+            else
+                state.Workspaces.Current.Name
+
+        let key = $"icon-{name}-{theme}"
+        statusIcons |> Map.tryFind key |> Option.defaultValue statusIcons["icon-qm-g"]
+
+    /// One-time function to populate the persistent tray menu items
+    member private _.InitializePersistentMenuItems() =
         let desktopLifetime =
             Avalonia.Application.Current.ApplicationLifetime :?> IClassicDesktopStyleApplicationLifetime
 
@@ -106,7 +113,7 @@ type TrayItem(config: AppConfig) =
                 quitItem
             }
 
-    let updateTrayMenu (wss: WorkspaceName list) =
+    member private _.UpdateTrayMenu(wss: WorkspaceName list) =
         tray.Menu.Items.Clear()
 
         wss
@@ -124,79 +131,40 @@ type TrayItem(config: AppConfig) =
 
         persistentMenuItems |> Seq.iter tray.Menu.Items.Add
 
-    /// logic for matching state to icon
-    let matchStateToIcon (state: TrayIconState) =
-        let mode = Avalonia.Application.Current.ActualThemeVariant
-        let isDarkTheme = mode = ThemeVariant.Dark
-        let bw = if isDarkTheme then "w" else "b"
-        let theme = if (state.Paused || state.CustomBinding) then "g" else bw
+    /// Modify the tray icon to match messages from GlazeWM. Assumes already running on AvaloniaUI thread.
+    member this.Handle (state: TrayIconState) (msg: ParsedMessage) : TrayIconState =
+        let newState =
+            match msg with
+            | Workspaces wm -> { state with Workspaces = wm }
+            | Paused p -> { state with Paused = p }
+            | NewBindingModes nb -> { state with CustomBinding = nb }
 
-        let name =
-            if state.CustomBinding then
-                "qm"
-            else
-                state.Workspaces.Current.Name
+        if newState <> state then
+            Log.Debug("Refreshing tray icon with: {State}", newState)
+            tray.Icon <- matchStateToIcon newState
+            tray.ToolTipText <- $"Workspace {newState.Workspaces.Current.DisplayName}"
+        if newState.Workspaces.Active <> state.Workspaces.Active then
+            Log.Debug("Refreshing tray Menu with: {Active}", newState.Workspaces.Active)
+            this.UpdateTrayMenu newState.Workspaces.Active
 
-        let key = $"icon-{name}-{theme}"
-        statusIcons |> Map.tryFind key |> Option.defaultValue statusIcons["icon-qm-g"]
+        newState
 
-    let handler =
-        MailboxProcessor<TrayMessage>.Start(fun inbox ->
-            let rec loop (state: TrayIconState) =
-                async {
-                    let! msg = inbox.Receive()
-
-                    let newState =
-                        Avalonia.Threading.Dispatcher.UIThread.Invoke(fun _ ->
-                            let st =
-                                match msg with
-                                | WorkspacesChanged wn -> { state with Workspaces = wn }
-                                | PausedChanged p -> { state with Paused = p }
-                                | BindingModesChanged cb -> { state with CustomBinding = cb }
-                                | ResetState -> { state with Reset = true }
-                                | SetReInitializeMenuEnabled b ->
-                                    Log.Debug("Setting reinitialize menu enabled to {Enabled}", b)
-                                    reInitializeMenu.IsEnabled <- b
-                                    state
-
-                            if st.Reset then
-                                Log.Debug("Resetting tray icon state")
-                                emptyState
-                            else
-                                if st <> state then
-                                    Log.Debug("Refreshing tray icon with: {State}", st)
-                                    tray.Icon <- matchStateToIcon st
-                                    tray.ToolTipText <- $"Workspace {st.Workspaces.Current.DisplayName}"
-
-                                if st.Workspaces.Active <> state.Workspaces.Active then
-                                    Log.Debug("Refreshing tray Menu with: {Active}", st.Workspaces.Active)
-                                    updateTrayMenu st.Workspaces.Active
-                                st)
-
-                    return! loop newState
-                }
-
-            loop emptyState)
-
-    member _.Initialize() =
+    member this.Initialize() =
         tray.ToolTipText <- "Workspace ?"
         tray.Menu <- NativeMenu()
-        initializePersistentMenuItems ()
-        updateTrayMenu []
+        this.InitializePersistentMenuItems()
+        this.UpdateTrayMenu []
         tray.Clicked.Add(fun _ -> menuEvent.Trigger ToggleMainWindow)
         let app_icon = statusIcons |> Map.find "icon"
         tray.Icon <- app_icon
-        handler.Error.Add(fun ex -> errorEvent.Trigger(ex))
 
 
     member _.Tray = tray
     member _.MenuEvent = menuEvent.Publish
-    member _.ErrorEvent = errorEvent.Publish
-    member _.Handle(msg: TrayMessage) = handler.Post(msg)
 
-    member _.OnCommunicationError() =
-        Avalonia.Threading.Dispatcher.UIThread.Invoke(fun _ ->
-            handler.Post(ResetState)
-            updateTrayMenu []
-            reInitializeMenu.IsEnabled <- true
-            tray.Icon <- statusIcons |> Map.find "error")
+    member this.OnConnectionError() =
+        this.UpdateTrayMenu []
+        reInitializeMenu.IsEnabled <- true
+        tray.Icon <- statusIcons |> Map.find "error"
+
+    member _.OnConnectionRestored() = reInitializeMenu.IsEnabled <- false

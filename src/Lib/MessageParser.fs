@@ -38,7 +38,7 @@ type private MessageTypeResult = Result<MessageType option, string>
 type Parser(client: IWsClient) as this =
 
     let compositeD = new CompositeDisposable()
-    let glazewmMessages = Subject<ParsedMessages>.broadcast
+    let glazewmMessages = Subject<ParsedMessage>.broadcast
     let warnings = Subject<ParserWarnings>.broadcast
 
     do

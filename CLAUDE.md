@@ -1,5 +1,5 @@
 # CLAUDE.md
-n
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project
@@ -29,19 +29,23 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 ## Architecture
 
 **Lib** (`src/Lib/`) — core library shared between TrayApp and Cli:
+- `Extensions.fs` — small utilities (e.g. `Result.tryCatch`)
 - `Models.fs` — data types (Workspace, Window, WorkspaceName) and JSON parsers using Farse
-- `WebSocketClient.fs` — MailboxProcessor-based async WebSocket agent
-- `MessageParser.fs` — routes incoming WS messages, manages app state
 - `Literals.fs` — GlazeWM command/event string constants
+- `WebSocketClient.fs` — WebSocket client; uses MailboxProcessor internally for the send loop and sync query, but exposes received messages and failures as `IObservable<T>` via `Subject<T>`
+- `MessageParser.fs` — `Parser` class: subscribes to raw WS messages and emits parsed `ParsedMessage` and `ParserWarnings` observables using Rx operators (`Observable.choose`, `Observable.scanInit`)
+- `GlazeWMClient.fs` — thin façade composing `WebSocketClient` + `Parser`; the primary entry point for consumers
 
 **TrayApp** (`src/TrayApp/`) — main tray application:
-- `App.fs` — tray icon state machine (MailboxProcessor agent), menu construction, WS connection init, theme-aware icon selection
-- `TrayItem.fs` — `TrayItem` class: MailboxProcessor-based tray icon state machine, workspace menu construction, theme-aware icon selection, tray click/menu event publishing
-- `MainView.fs` — `MainWindow` (tabbed GUI window): hosts the Query and About tabs; supports Ctrl+W to close and hides on close instead of exiting
-- `QueryPanel.fs` — query panel view: text input to send a GlazeWM query, displays the JSON response in an interactive collapsible tree view, and allows copying the formatted JSON to clipboard
-- `AboutPanel.fs` — about panel view: app name and version
-- `GlazeWMConnection.fs` — manages the WebSocket connection lifecycle for the GUI query feature
+- `Icons.fs` — SVG path icon data and `pathIcon` helper for Avalonia FuncUI
 - `Helpers.fs` — Windows toast notifications (UWP), Win32 MessageBoxW interop
+- `Models.fs` — `AppConfig` type and its loader
+- `AboutPanel.fs` — about panel view: app name and version
+- `QueryPanel.fs` — query panel view: text input to send a GlazeWM query, displays the JSON response in an interactive collapsible tree view, and allows copying the formatted JSON to clipboard
+- `MainView.fs` — `MainWindow` (tabbed GUI window): hosts the Query and About tabs; supports Ctrl+W to close and hides on close instead of exiting
+- `Styles/AppStyles.fs` — `AppStyles` class loading XAML styles
+- `TrayItem.fs` — `TrayItem` class: manages the tray icon and native menu; `Handle` is a pure state-transition function (`TrayIconState -> ParsedMessage -> TrayIconState`); impure operations (menu mutation, icon update) are class members
+- `App.fs` — Avalonia `App` class; wires the reactive pipeline in `OnFrameworkInitializationCompleted` (`GlazeWMClient` observables → `ObserveOn(uiScheduler)` → `Scan` → `TrayItem.Handle`); handles tray menu events and connection lifecycle
 - `Program.fs` — entry point, Serilog setup (console in debug, file in release at `%APPDATA%\GlazeWM-Tray\logs\`)
 
 **Cli** (`src/Cli/`) — console tool for testing/debugging GlazeWM connection
@@ -50,7 +54,7 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 - `test/LibTests/` — NUnit + FsUnit unit tests for Lib, with JSON fixtures in `Fixtures/`
 - `test/GuiTests/` — headless Avalonia GUI tests (using `Avalonia.Headless.NUnit`) for TrayApp views; currently covers `QueryPanel`
 
-**Data flow:** TrayApp connects via WebSocket to GlazeWM (`ws://localhost:6123/`), subscribes to workspace/focus/pause/binding events, MessageParser updates state, App agent renders tray icon and menu.
+**Data flow:** `GlazeWMClient` connects via WebSocket to GlazeWM (`ws://localhost:6123/`), subscribes to workspace/focus/pause/binding events. `Parser` emits typed `ParsedMessage` values as an observable. `App` pipes them through `Scan` (with `TrayItem.Handle` as the pure fold function) on the Avalonia UI scheduler, updating the tray icon and menu reactively.
 
 **Icon system:** Per-workspace icons (0-9, a-z first char) in three variants: black (b), white (w), grey (g). Grey = paused or custom binding mode. Question mark for unknown states. Source: `resources/Icons.af` (Affinity Designer); regenerate with `just icons`.
 
@@ -58,6 +62,7 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 
 - **Prefer suggestions over edits** — unless explicitly asked, don't edit code directly. Instead, offer idiomatic F# solutions with samples that resemble the actual code. Where feasible, provide a self-contained `.fsx` script the user can run independently to explore the approach outside the project.
 - **Avalonia class/function balance** — Avalonia is a C# library and sometimes requires classes (e.g. the `App` class in `App.fs`). Prefer `let` functions for logic, but some behaviour belongs in class methods by design — don't force everything into `let` bindings when the class method is the natural fit.
+- **Purity discipline** — `let` bindings inside classes are kept pure (no side effects, no mutable state). Impure operations (UI mutation, logging, sending messages) belong in class members. This makes pure logic easy to test in isolation.
 
 ## Cross-Platform Notes
 
@@ -71,7 +76,8 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 
 ## Key Patterns
 
-- **MailboxProcessor agents** for concurrency (WebSocket client, tray icon state)
+- **Reactive architecture** (Rx.NET / `FSharp.Control.Reactive`) for the main data flow: observables carry parsed messages from `GlazeWMClient` through the pipeline to the UI
+- **MailboxProcessor** is still used inside `WebSocketClient` for the outbound send loop and synchronous query, but is an implementation detail not exposed to consumers
 - **Railway-oriented programming** with Result types via FsToolkit.ErrorHandling
 - F# file ordering matters — files compile top-to-bottom as listed in .fsproj
 - Central Package Management via `Directory.Packages.props`

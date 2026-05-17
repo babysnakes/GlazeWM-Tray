@@ -48,9 +48,4 @@ let loadFixture fileName =
     let fixturePath = Path.Combine("Fixtures", fileName)
     File.ReadAllText fixturePath
 
-let printElements (window: Window) =
-    window.GetVisualDescendants()
-    |> Seq.map (fun v -> v.GetType().Name)
-    |> Seq.iter TestContext.Progress.WriteLine
-
 let expectTrue (message: string) (tested: bool) = Assert.That(tested, message)

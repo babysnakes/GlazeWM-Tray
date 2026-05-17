@@ -179,7 +179,7 @@ module ``Pause status`` =
         let wsc = mkIWsClient ignore subject
         use parser = new Parser(wsc)
 
-        let handler (m: ParsedMessages) =
+        let handler (m: ParsedMessage) =
             match m with
             | Paused p -> tcs.SetResult(p)
             | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}")
