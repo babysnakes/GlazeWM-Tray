@@ -76,6 +76,7 @@ type Parser(client: IWsClient) as this =
                     |> Some
         }
         |> Parser.parse json
+        |> Result.mapError ParserError.asString
 
     let trySubscriptionEvent (json: string) =
         parser {
@@ -88,6 +89,7 @@ type Parser(client: IWsClient) as this =
                 return None
         }
         |> Parser.parse json
+        |> Result.mapError ParserError.asString
 
     let tryQueryResponse (json: string) =
         parser {
@@ -96,6 +98,7 @@ type Parser(client: IWsClient) as this =
             return clientMessage |> Option.map QueryResponseType
         }
         |> Parser.parse json
+        |> Result.mapError ParserError.asString
 
     let parseFocusChangedEvent (json: string) (state: WorkspacesResponse) =
         Log.Debug("messageParser received focus changed: {Message}", json)
@@ -103,6 +106,7 @@ type Parser(client: IWsClient) as this =
             let! parsed = Parser.parse json FocusChangedEventData.windowParser
             return! tryGetWorkspaceNotificationByGuid parsed state |> Ok
         }
+        |> Result.mapError ParserError.asString
         |> Result.teeError (logParseError "focus changed event")
 
     let parseWorkspaceResponse (json: string) =
@@ -116,29 +120,34 @@ type Parser(client: IWsClient) as this =
                 Log.Warning("No current workspace found in {Workspaces}", wr.Data)
                 None
             |> ResultOption.ofOption)
+        |> Result.mapError ParserError.asString
         |> Result.teeError (logParseError "workspace response")
 
     let parseQueryPausedResponse (json: string) =
         Log.Debug("messageParser received query paused: {Message}", json)
         parser { return! "data" &= Parse.bool }
         |> Parser.parse json
+        |> Result.mapError ParserError.asString
         |> Result.teeError (logParseError "query paused response")
 
     let parseBindingModesResponse (json: string) =
         Log.Debug("messageParser received query binding modes: {Message}", json)
         Parser.parse json BindingModeQueryResponse.parser
         |> Result.map (fun parsed -> parsed.Data.BindingModes |> List.isEmpty |> not)
+        |> Result.mapError ParserError.asString
         |> Result.teeError (logParseError "process binding modes response")
 
     let parsePausedChangedEvent (json: string) =
         Log.Debug("messageParser received pause changed: {Message}", json)
         Parser.parse json PauseChangedEvent.parser
+        |> Result.mapError ParserError.asString
         |> Result.teeError (logParseError "pause changed event")
 
     let parseBindingModesEvent (json: string) =
         Log.Debug("messageParser received binding modes changed: {Message}", json)
         Parser.parse json BindingModesChangedEvent.parser
         |> Result.map (fun parsed -> parsed.Data.NewBindingModes |> List.isEmpty |> not)
+        |> Result.mapError ParserError.asString
         |> Result.teeError (logParseError "process binding modes event")
 
     member private _.Dispatch msg =
