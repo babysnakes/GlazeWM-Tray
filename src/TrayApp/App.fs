@@ -43,7 +43,7 @@ type App(config: AppConfig) as this =
             showErrorMessage "App Error" "MainWindow is null, please restart the application"
         | Some w when w.IsVisible |> not ->
             w.Show()
-            if w.WindowState = WindowState.Minimized then
+            if w.WindowState = Avalonia.Controls.WindowState.Minimized then
                 w.WindowState <- WindowState.Normal
             w.Activate()
         | Some w -> w.Hide()

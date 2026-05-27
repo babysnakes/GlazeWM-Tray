@@ -244,6 +244,16 @@ type Parser(client: IWsClient) as this =
 module CustomParsers =
     open FSharp.Data
     open JsonExtensions
+    open Parse
+
+    let logParseError subject err =
+        Log.Error("Error parsing {Subject}: {Err}", subject, err)
+
+    let successfulMessage (msg: string option) (success: bool) =
+        if success then
+            Ok true
+        else
+            Error(msg |> Option.defaultValue "Unspecified Error")
 
     let private extractResponseData (json: string) =
         let jsonData = JsonValue.Parse(json)
@@ -255,3 +265,25 @@ module CustomParsers =
 
     let tryExtractResponseData json =
         Result.tryCatch (fun () -> extractResponseData json)
+
+    let parseSuccess (json: string) =
+        parser {
+            let! msg = "error" ?= string
+            let! _ = "success" &= valid bool (successfulMessage msg)
+            return ()
+        }
+        |> Parser.parse json
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "unsuccessful response")
+
+    /// Parses output of 'Query Workspaces' that includes the windows.
+    let parseWorkspaces (json: string) =
+        parser {
+            let! msg = "error" ?= string
+            let! _ = "success" &= valid bool (successfulMessage msg)
+            let! data = "data.workspaces" &= list Workspaces.parse
+            return data
+        }
+        |> Parser.parse json
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "workspace response")

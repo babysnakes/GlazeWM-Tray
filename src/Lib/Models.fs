@@ -11,16 +11,43 @@ type IWsClient =
     abstract member ReceivedMessages: IObservable<string>
     abstract member SendMessage: msg: string -> unit
 
-type WorkspaceName = { Name: string; DisplayName: string }
+type WindowState =
+    | Floating
+    | Fullscreen
+    | Minimized
+    | Tiling
+
+type Window =
+    { Id: Guid
+      HasFocus: bool
+      Width: int
+      Height: int
+      X: int
+      Y: int
+      State: WindowState
+      Title: string
+      ClassName: string option
+      ProcessName: string }
 
 type Workspace =
     { Id: Guid
       Name: string
       DisplayName: string option
       ParentId: Guid
+      HasFocus: bool
+      Children: Window list }
+
+type WorkspaceName = { Name: string; DisplayName: string }
+
+/// Minimal information about a workspace.
+type WorkspaceInfo =
+    { Id: Guid
+      Name: string
+      DisplayName: string option
+      ParentId: Guid
       HasFocus: bool }
 
-type WorkspaceResponseData = { Workspaces: Workspace list }
+type WorkspaceResponseData = { Workspaces: WorkspaceInfo list }
 
 type WorkspacesResponse = { Data: WorkspaceResponseData }
 
@@ -92,7 +119,7 @@ module WorkspaceResponse =
 
     /// Logic to extract the workspace name. If the name is longer than a single character, it uses the first character.
     /// The display name is either defined or duplicates the full name.
-    let extractWorkspaceName (workspace: Workspace) =
+    let extractWorkspaceName (workspace: WorkspaceInfo) =
         let mutable name = workspace.Name.Trim()
         if name.Length <> 1 then name <- name[0] |> string
 
@@ -123,6 +150,82 @@ module WorkspaceResponse =
         |> Option.map (fun current ->
             let wn = current |> extractWorkspaceName
             { Active = active; Current = wn })
+
+module WindowState =
+    let fromString (s: string) =
+        match s.ToLower() with
+        | "floating" -> Ok Floating
+        | "fullscreen" -> Ok Fullscreen
+        | "minimized" -> Ok Minimized
+        | "tiling" -> Ok Tiling
+        | _ -> Error $"unknown window state: {s}"
+
+module Workspaces =
+    open Parse
+
+    let private parseState (s: string) =
+        match s.ToLower() with
+        | "floating" -> Ok Floating
+        | "fullscreen" -> Ok Fullscreen
+        | "minimized" -> Ok Minimized
+        | "tiling" -> Ok Tiling
+        | _ -> Error $"unknown window state: {s}"
+
+    let private parseWindow =
+        parser {
+            let! t = "type" &= string
+            if t = "window" then
+                let! id = "id" &= guid
+                and! hasFocus = "hasFocus" &= bool
+                and! width = "width" &= int
+                and! height = "height" &= int
+                and! x = "x" &= int
+                and! y = "y" &= int
+                and! title = "title" &= string
+                and! className = "className" ?= string
+                and! processName = "processName" &= string
+                let! state = "state.type" &= valid string parseState
+
+                return
+                    Some
+                        { Id = id
+                          HasFocus = hasFocus
+                          Width = width
+                          Height = height
+                          X = x
+                          Y = y
+                          State = state
+                          Title = title
+                          ClassName = className
+                          ProcessName = processName }
+            else
+                return None
+        }
+
+    let parse =
+        parser {
+            let! allWindows = "children" &= list parseWindow
+            let windows = allWindows |> List.choose id
+            let! id = "id" &= guid
+            and! parentId = "parentId" &= guid
+            and! name = "name" &= string
+            and! displayName = "displayName" ?= string
+            and! hasFocus = "hasFocus" &= bool
+            return
+                { Id = id
+                  Name = name
+                  DisplayName = displayName
+                  ParentId = parentId
+                  HasFocus = hasFocus
+                  Children = windows }
+        }
+
+    let filterWindow (s: string) (w: Window) =
+        let ls = s.ToLower()
+        if w.Title.ToLower().Contains(ls) || w.ProcessName.ToLower().Contains(ls) then
+            Some w
+        else
+            None
 
 module FocusChangedEventData =
 

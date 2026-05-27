@@ -243,7 +243,7 @@ module ``Workspace activated-deactivated-updated`` =
         let result = tcs.Task.Result
         result |> should equal QWorkspaces
 
-module ``Actor Resilience Test`` =
+module ``Parsers Resilience Test`` =
     type TestInput = { File: string; ErrorMessage: string }
 
     let mkInvalidJsonTypes () =
@@ -291,3 +291,37 @@ module ``Actor Resilience Test`` =
             Assert.Fail($"timeout processing input: {input}")
 
         error |> should contain input.ErrorMessage
+
+module ``Custom Parsers - Workspaces`` =
+
+    [<Test>]
+    let ``parse data wrapper returns error on unsuccessful response`` () =
+        let workspaceResponse = loadFixture "basic-workspaces-response.json"
+        let parsed = workspaceResponse |> CustomParsers.parseWorkspaces |> Result.unwrap
+        parsed |> should haveLength 2
+        parsed[0].Children |> should haveLength 4
+        parsed[1].Children |> should haveLength 3
+
+    [<Test>]
+    let ``correctly identify unsuccessful response`` () =
+        let json = loadFixture "error-response-with-error.json"
+        let parsed = json |> CustomParsers.parseWorkspaces
+        match parsed with
+        | Ok _ -> Assert.Fail("expected error")
+        | Error e -> e |> should contain "unrecognized subcommand"
+
+    [<Test>]
+    let ``unsuccessful response with empty error prints default error message`` () =
+        let json = loadFixture "error-response-without-error.json"
+        let parsed = json |> CustomParsers.parseWorkspaces
+        match parsed with
+        | Ok _ -> Assert.Fail("expected error")
+        | Error e -> e |> should contain "Unspecified Error"
+
+    [<Test>]
+    let ``be resilient to invalid json`` () =
+        let json = loadFixture "non-json.json"
+        let parsed = json |> CustomParsers.parseWorkspaces
+        match parsed with
+        | Ok _ -> Assert.Fail("expected error")
+        | Error e -> e |> should contain "Could not parse JSON"
