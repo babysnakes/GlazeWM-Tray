@@ -1,7 +1,12 @@
 ﻿namespace GlazeWM.TrayApp.Helpers
 
+open System
 open System.Diagnostics
 open System.Threading.Tasks
+open Avalonia.Controls
+open Avalonia.Controls.Notifications
+open Avalonia.FuncUI
+open FSharp.Data.Runtime.NameUtils
 open MsBox.Avalonia
 open MsBox.Avalonia.Enums
 open Serilog
@@ -69,3 +74,18 @@ module Notifications =
                 Log.Error(ex, "Failed to show error message box")
         }
         |> Async.Start
+
+    /// Shows error notification if the provided result is error (using the provided title)
+    let notifyIfError title (ctx: IComponentContext) (res: Result<_, string>) =
+        match res with
+        | Ok _ -> ()
+        | Error e ->
+            let window = TopLevel.GetTopLevel ctx.control :?> Window
+            let nm = WindowNotificationManager window
+            let notification =
+                Notification(title, $"Error: {e}", NotificationType.Error, TimeSpan.Zero)
+            nm.Show(notification)
+
+module TextHelpers =
+    /// A basic pluralizer
+    let pluralize s num = if num = 1 then s else pluralize s

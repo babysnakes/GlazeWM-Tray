@@ -11,11 +11,26 @@
                      #80000000 in both themes, which is invisible on dark backgrounds -->
                 <ResourceDictionary x:Key="Dark">
                     <Color x:Key="SmokeColor">#99FFFFFF</Color>
+                    <SolidColorBrush x:Key="WindowCardBackgroundBrush" Color="Black" />
+                    <SolidColorBrush x:Key="WorkspaceContentBackgroundBrush" Color="#1A1A1A" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="WindowCardBackgroundBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="WorkspaceContentBackgroundBrush" Color="#E0E0E0" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Styles.Resources>
     <Style Selector=":is(Control)">
         <Setter Property="ToolTip.ShowDelay" Value="600" />
+    </Style>
+    <Style Selector="Border.window-card">
+        <Setter Property="Background" Value="{DynamicResource WindowCardBackgroundBrush}" />
+    </Style>
+    <Style Selector="Border.workspace-content">
+        <Setter Property="Background" Value="{DynamicResource WorkspaceContentBackgroundBrush}" />
+    </Style>
+    <Style Selector="StackPanel.workspace-content">
+        <Setter Property="Background" Value="{DynamicResource WorkspaceContentBackgroundBrush}" />
     </Style>
 </Styles>

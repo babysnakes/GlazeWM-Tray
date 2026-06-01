@@ -10,6 +10,7 @@
     <Compile Include="Helpers.fs" />
     <Compile Include="TestApp.fs" />
     <Compile Include="QueryPanelTests.fs" />
+    <Compile Include="WindowsPanelTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

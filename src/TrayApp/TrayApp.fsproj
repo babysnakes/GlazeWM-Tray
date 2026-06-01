@@ -18,7 +18,9 @@
     <Compile Include="Helpers.fs" />
     <Compile Include="Models.fs" />
     <Compile Include="AboutPanel.fs" />
+    <Compile Include="SharedViews.fs" />
     <Compile Include="QueryPanel.fs" />
+    <Compile Include="WindowsPanel.fs" />
     <Compile Include="MainView.fs" />
     <Compile Include="Styles\AppStyles.fs" />
     <Compile Include="TrayItem.fs" />
