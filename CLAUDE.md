@@ -30,7 +30,7 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 
 **Lib** (`src/Lib/`) — core library shared between TrayApp and Cli:
 - `Extensions.fs` — small utilities (e.g. `Result.tryCatch`)
-- `Models.fs` — data types (Workspace, Window, WorkspaceName) and JSON parsers using Farse
+- `Models.fs` — data types (`WorkspaceInfo`/`WorkspaceName` for tray state, `Workspace`/`Window`/`WindowState` for windows queries) and JSON parsers using Farse; `Workspaces.parse` parses a workspace with its child windows, `Workspaces.filterWindow` filters a window by title/process name
 - `Literals.fs` — GlazeWM command/event string constants
 - `WebSocketClient.fs` — WebSocket client; uses MailboxProcessor internally for the send loop and sync query, but exposes received messages and failures as `IObservable<T>` via `Subject<T>`
 - `MessageParser.fs` — `Parser` class: subscribes to raw WS messages and emits parsed `ParsedMessage` and `ParserWarnings` observables using Rx operators (`Observable.choose`, `Observable.scanInit`)
@@ -38,11 +38,13 @@ Run a single test: `dotnet test --filter "FullyQualifiedName~TestName"`
 
 **TrayApp** (`src/TrayApp/`) — main tray application:
 - `Icons.fs` — SVG path icon data and `pathIcon` helper for Avalonia FuncUI
-- `Helpers.fs` — Windows toast notifications (UWP), Win32 MessageBoxW interop
-- `Models.fs` — `AppConfig` type and its loader
+- `Helpers.fs` — Windows toast notifications (UWP), Win32 MessageBoxW interop, `Notifications.notifyIfError` (shows an in-window error notification for a `Result`), `TextHelpers.pluralize`
+- `Models.fs` — `AppConfig` type and its loader; `IViewsHelpers` interface (`RunSyncQuery`) used by panel views to talk to GlazeWM without depending on `App`/`MainWindow` directly
+- `SharedViews.fs` — small view helpers shared across panels: `simplePanel`, `error`, and `confirmDialog` (a Yes/No modal)
 - `AboutPanel.fs` — about panel view: app name and version
 - `QueryPanel.fs` — query panel view: text input to send a GlazeWM query, displays the JSON response in an interactive collapsible tree view, and allows copying the formatted JSON to clipboard
-- `MainView.fs` — `MainWindow` (tabbed GUI window): hosts the Query and About tabs; supports Ctrl+W to close and hides on close instead of exiting
+- `WindowsPanel.fs` — windows panel view: runs `query workspaces`, renders each workspace as an expander containing cards for its windows (title/process/size/state, tooltip with full details), supports filtering windows by title/process name, and a per-window context menu to copy window data or send an `ignore` command (with confirmation dialog)
+- `MainView.fs` — `MainWindow` (tabbed GUI window): hosts the Query, Windows, and About tabs; supports Ctrl+W to close and hides on close instead of exiting
 - `Styles/AppStyles.fs` — `AppStyles` class loading XAML styles
 - `TrayItem.fs` — `TrayItem` class: manages the tray icon and native menu; `Handle` is a pure state-transition function (`TrayIconState -> ParsedMessage -> TrayIconState`); impure operations (menu mutation, icon update) are class members
 - `App.fs` — Avalonia `App` class; wires the reactive pipeline in `OnFrameworkInitializationCompleted` (`GlazeWMClient` observables → `ObserveOn(uiScheduler)` → `Scan` → `TrayItem.Handle`); handles tray menu events and connection lifecycle
