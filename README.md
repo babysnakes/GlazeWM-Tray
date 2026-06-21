@@ -41,13 +41,14 @@ GlazeWM-Tray can be downloaded from the [releases page][releases] as a zip file 
 architecture that matches your system.
 
 On _Windows_, extract the zip to some directory, optionally create a link for GlazeWM-Tray.exe. Once running for the
-first time, open the tray area and drag the icon to the taskbar. It should be visible on the taskbar from now on.
+first time, open the tray area and drag the icon to the taskbar. It should be visible on the taskbar from now on. It is
+also available in my private [Scoop][] [bucket][] (the [bucket's readme][bucket] contains instructions and lists the
+available manifests). It's also possible to add it to GlazeWM's `startup_commands` and `shutdown_commands` (similar to
+the _Zebar_ example).
 
-On _MacOS_, extract the zip and copy to your _Applications_ folder.
-
-For windows, it is also available in my private [Scoop][] [bucket][] ( the [bucket's readme][bucket] contains
-instructions and lists the available manifests). It's also possible to add it to GlazeWM's `startup_commands` and
-`shutdown_commands` (similar to the _Zebar_ example).
+On _MacOS_, for now, you'll need to build it yourself. Once the project is restored and built, run
+`dotnet run resources/scripts/package-macos.cs` and it should build a zip containing the app. If you need instructions
+to build, open an issue.
 
 ### Planned Features
 
