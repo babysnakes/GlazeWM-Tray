@@ -1,20 +1,17 @@
 ﻿namespace GlazeWM.Tray.MessageParser
 
 open System
+open System.Reactive.Disposables
+open System.Reactive.Linq
 open Farse
 open Farse.Operators
 open FsToolkit.ErrorHandling
+open FSharp.Control.Reactive
+open GlazeWM.Tray.Extensions
 open Serilog
 open GlazeWM.Tray.Literals
 open GlazeWM.Tray.Models
 open GlazeWM.Tray.Models.WorkspaceResponse
-open GlazeWM.Tray.WebSocketClient
-
-type MessageParserEvent =
-    | ParseError of string
-    | NoCurrentWorkspace
-    | UnsetWsClient
-    | AgentError of exn
 
 type private JsonType =
     | FocusChanged of string
@@ -23,8 +20,13 @@ type private JsonType =
     | QueryWorkspaces of string
     | QueryPaused of string
     | QueryBindingModes of string
-    | Unhandled of string
     | WorkspaceStar
+
+type ParserWarnings =
+    | UnsuccessfulResponse of string
+    | ParserError of string
+    | UnexpectedError of exn
+    | NoCurrentWorkspace
 
 type private MessageType =
     | QueryResponseType of string
@@ -33,30 +35,24 @@ type private MessageType =
 
 type private MessageTypeResult = Result<MessageType option, string>
 
-type Parser(handler: MailboxProcessor<ParsingOutput>) =
+type Parser(client: IWsClient) as this =
 
-    let errorEvent = Event<MessageParserEvent>()
-    let mutable wsClient: MailboxProcessor<WebSocketMessage> option = None
+    let compositeD = new CompositeDisposable()
+    let glazewmMessages = Subject<ParsedMessage>.broadcast
+    let warnings = Subject<ParserWarnings>.broadcast
 
-    let reportResultError (sbj: string) (result: Result<_, string>) =
-        result
-        |> Result.teeError (fun e ->
-            Log.Error(e, "Error parsing {Sbj}:", sbj)
-            errorEvent.Trigger(ParseError e))
+    do
+        client.ReceivedMessages
+        |> Observable.choose this.Dispatch
+        |> Observable.scanInit empty this.ParseMessage
+        |> Observable.subscribe ignore
+        |> Disposable.disposeWith compositeD
 
-    /// Reports error to `errorEvent` if failed.
-    let handleError sbj result = reportResultError sbj result |> ignore
+        glazewmMessages |> Disposable.disposeWith compositeD
+        warnings |> Disposable.disposeWith compositeD
 
-    /// Convert the result to an Option. Report error to `errorEvent` if failed.
-    let toOption (sbj: string) =
-        reportResultError sbj >> Result.toOption
-
-    let sendWebSocketMessage (msg: string) =
-        match wsClient with
-        | Some client -> client.Post(SendMessage msg)
-        | None ->
-            Log.Error("No websocket client set")
-            errorEvent.Trigger UnsetWsClient
+    let logParseError subject err =
+        Log.Error("Error parsing {Subject}: {Err}", subject, err)
 
     /// Stops after the first matcher succeeds or in errors
     let mergeMatcher (json: string) (f: string -> MessageTypeResult) (current: MessageTypeResult) : MessageTypeResult =
@@ -80,6 +76,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                     |> Some
         }
         |> Parser.parse json
+        |> Result.mapError ParserError.asString
 
     let trySubscriptionEvent (json: string) =
         parser {
@@ -92,6 +89,7 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
                 return None
         }
         |> Parser.parse json
+        |> Result.mapError ParserError.asString
 
     let tryQueryResponse (json: string) =
         parser {
@@ -100,165 +98,162 @@ type Parser(handler: MailboxProcessor<ParsingOutput>) =
             return clientMessage |> Option.map QueryResponseType
         }
         |> Parser.parse json
+        |> Result.mapError ParserError.asString
 
-    /// Check for the current workspace and notifies the handler if found. Returns optional current workspace.
-    let handleWorkspacesResponse (wr: WorkspacesResponse) =
-        match wr |> tryGetWorkspacesNotification with
-        | Some wn ->
-            wn |> Workspaces |> handler.Post
-            Some(wr)
-        | None ->
-            Log.Warning("No current workspace found in {Workspaces}", wr.Data)
-            errorEvent.Trigger NoCurrentWorkspace
+    let parseFocusChangedEvent (json: string) (state: WorkspacesResponse) =
+        Log.Debug("messageParser received focus changed: {Message}", json)
+        resultOption {
+            let! parsed = Parser.parse json FocusChangedEventData.windowParser
+            return! tryGetWorkspaceNotificationByGuid parsed state |> Ok
+        }
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "focus changed event")
+
+    let parseWorkspaceResponse (json: string) =
+        Log.Debug("messageParser received query workspaces: {Message}", json)
+        Parser.parse json wrParser
+        |> ResultOption.ofResult
+        |> ResultOption.bind (fun wr ->
+            match wr |> tryGetWorkspacesNotification with
+            | Some wn -> Some(wr, wn)
+            | None ->
+                Log.Warning("No current workspace found in {Workspaces}", wr.Data)
+                None
+            |> ResultOption.ofOption)
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "workspace response")
+
+    let parseQueryPausedResponse (json: string) =
+        Log.Debug("messageParser received query paused: {Message}", json)
+        parser { return! "data" &= Parse.bool }
+        |> Parser.parse json
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "query paused response")
+
+    let parseBindingModesResponse (json: string) =
+        Log.Debug("messageParser received query binding modes: {Message}", json)
+        Parser.parse json BindingModeQueryResponse.parser
+        |> Result.map (fun parsed -> parsed.Data.BindingModes |> List.isEmpty |> not)
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "process binding modes response")
+
+    let parsePausedChangedEvent (json: string) =
+        Log.Debug("messageParser received pause changed: {Message}", json)
+        Parser.parse json PauseChangedEvent.parser
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "pause changed event")
+
+    let parseBindingModesEvent (json: string) =
+        Log.Debug("messageParser received binding modes changed: {Message}", json)
+        Parser.parse json BindingModesChangedEvent.parser
+        |> Result.map (fun parsed -> parsed.Data.NewBindingModes |> List.isEmpty |> not)
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "process binding modes event")
+
+    member private _.Dispatch msg =
+        try
+            tryUnsuccessfulResponse msg
+            |> mergeMatcher msg trySubscriptionEvent
+            |> mergeMatcher msg tryQueryResponse
+            |> function
+                | Ok(Some(UnSuccessfulResponseType msg)) ->
+                    msg |> UnsuccessfulResponse |> warnings.OnNext
+                    None
+                | Ok(Some(SubscriptionResponseType SFocusCH)) -> Some(FocusChanged msg)
+                | Ok(Some(SubscriptionResponseType SBindingModesCH)) -> Some(BindingModesChanged msg)
+                | Ok(Some(SubscriptionResponseType SPauseCH)) -> Some(PausedChanged msg)
+                | Ok(Some(SubscriptionResponseType SWorkspaceUP))
+                | Ok(Some(SubscriptionResponseType SWorkspaceDeACT))
+                | Ok(Some(SubscriptionResponseType SWorkspaceACT)) -> Some WorkspaceStar
+                | Ok(Some(QueryResponseType QWorkspaces)) -> Some(QueryWorkspaces msg)
+                | Ok(Some(QueryResponseType QPaused)) -> Some(QueryPaused msg)
+                | Ok(Some(QueryResponseType QBinding)) -> Some(QueryBindingModes msg)
+                | Ok _ ->
+                    Log.Debug("Unhandled message: {Message}", msg)
+                    None
+                | Error e ->
+                    Log.Error("Error parsing message: {Ex}", e)
+                    ParserError e |> warnings.OnNext
+                    None
+        with ex ->
+            UnexpectedError ex |> warnings.OnNext
             None
 
-    /// Notifies the handler with the current workspace if identified in the provided state.
-    let handleFocusChangedEvent (json: string) (state: WorkspacesResponse) =
-        parser {
-            let! containerType = "data.focusedContainer.type" &= Parse.string
 
-            if containerType = "window" then
-                let! parentId = "data.focusedContainer.parentId" &= Parse.guid
+    member private _.ParseMessage (state: WorkspacesResponse) (msg: JsonType) =
+        try
+            match msg with
+            | FocusChanged m ->
+                match parseFocusChangedEvent m state with
+                | Ok(Some wn) -> wn |> Workspaces |> glazewmMessages.OnNext
+                | Ok None -> client.SendMessage QWorkspaces
+                | Error e -> ParserError e |> warnings.OnNext
 
-                return
-                    tryGetWorkspaceNotificationByGuid parentId state
-                    |> Option.map (Workspaces >> handler.Post)
-            else
-                return None
-        }
-        |> Parser.parse json
-        |> toOption "focus changed event"
-        |> Option.flatten
+                state
+            | QueryWorkspaces m ->
+                match parseWorkspaceResponse m with
+                | Ok(Some(wr, wn)) ->
+                    wn |> Workspaces |> glazewmMessages.OnNext
+                    wr
+                | Ok None ->
+                    warnings.OnNext NoCurrentWorkspace
+                    state
+                | Error e ->
+                    ParserError e |> warnings.OnNext
+                    state
+            | QueryPaused m ->
+                match parseQueryPausedResponse m with
+                | Ok paused -> paused |> Paused |> glazewmMessages.OnNext
+                | Error e -> e |> ParserError |> warnings.OnNext
 
-    let handleQueryPausedResponse (json: string) =
-        parser {
-            let! paused = "data" &= Parse.bool
-            return paused |> Paused |> handler.Post
-        }
-        |> Parser.parse json
-        |> handleError "query paused response"
+                state
+            | QueryBindingModes m ->
+                match parseBindingModesResponse m with
+                | Ok bm -> bm |> NewBindingModes |> glazewmMessages.OnNext
+                | Error e -> e |> ParserError |> warnings.OnNext
 
-    let messageParser =
-        let agent =
-            MailboxProcessor<JsonType>.Start(fun inbox ->
-                let rec loop (state: WorkspacesResponse option) =
+                state
+            | PausedChanged m ->
+                match parsePausedChangedEvent m with
+                | Ok event -> event.Data.IsPaused |> Paused |> glazewmMessages.OnNext
+                | Error e -> e |> ParserError |> warnings.OnNext
 
-                    async {
-                        let! msg = inbox.Receive()
+                state
+            | BindingModesChanged m ->
+                match parseBindingModesEvent m with
+                | Ok nb -> nb |> NewBindingModes |> glazewmMessages.OnNext
+                | Error e -> e |> ParserError |> warnings.OnNext
 
-                        try
-                            match msg with
-                            | FocusChanged m ->
-                                Log.Debug("messageParser received focus changed: {Message}", m)
+                state
+            | WorkspaceStar ->
+                client.SendMessage QWorkspaces
+                state
+        with ex ->
+            UnexpectedError ex |> warnings.OnNext
+            state
 
-                                state
-                                |> Option.bind (handleFocusChangedEvent m)
-                                |> Option.defaultWith (fun () -> sendWebSocketMessage QWorkspaces)
-                            | QueryWorkspaces m ->
-                                Log.Debug("messageParser received query workspaces: {Message}", m)
-                                let parsed = wrParser |> Parser.parse m |> toOption "query workspaces response"
+    /// GlazeWM Parsed Messages
+    member _.GlazewmMessages = glazewmMessages.AsObservable()
 
-                                match (parsed |> Option.bind handleWorkspacesResponse) with
-                                | Some wr -> return! loop (Some wr)
-                                | None -> ()
-                            | QueryPaused m ->
-                                Log.Debug("messageParser received query paused: {Message}", m)
-                                handleQueryPausedResponse m
-                            | QueryBindingModes m ->
-                                Log.Debug("messageParser received query binding modes: {Message}", m)
+    /// Parser warnings
+    member _.Warnings = warnings.AsObservable()
 
-                                result {
-                                    let! parsed = Parser.parse m BindingModeQueryResponse.parser
-                                    let nb = (parsed.Data.BindingModes |> List.isEmpty |> not)
-                                    return handler.Post(NewBindingModes nb)
-                                }
-                                |> handleError "new binding modes response"
-                            | PausedChanged m ->
-                                Log.Debug("messageParser received pause changed: {Message}", m)
-
-                                result {
-                                    let! parsed = Parser.parse m PauseChangedEvent.parser
-                                    return handler.Post(Paused parsed.Data.IsPaused)
-                                }
-                                |> handleError "pause changed event"
-                            | BindingModesChanged m ->
-                                Log.Debug("messageParser received binding modes changed: {Message}", m)
-
-                                result {
-                                    let! parsed = Parser.parse m BindingModesChangedEvent.parser
-                                    let nb = (parsed.Data.NewBindingModes |> List.isEmpty |> not)
-                                    return handler.Post(NewBindingModes nb)
-                                }
-                                |> handleError "binding modes event"
-                            | WorkspaceStar -> sendWebSocketMessage QWorkspaces
-                            | Unhandled m -> Log.Debug("Unhandled message: {Message}", m)
-                        with
-                        | :? OperationCanceledException as ex ->
-                            Log.Information "Parser cancelled"
-                            raise ex
-                        | ex ->
-                            Log.Error("Error parsing json {Ex}", ex)
-                            errorEvent.Trigger(ParseError ex.Message)
-
-                        do! loop state
-                    }
-
-                loop None)
-
-        agent.Error.Add(fun exn -> errorEvent.Trigger(AgentError exn))
-        agent
-
-    [<CLIEvent>]
-    member this.Error = errorEvent.Publish
-
-    member _.Dispatcher() =
-        let agent =
-            MailboxProcessor<string>.Start(fun inbox ->
-                let rec loop () =
-                    async {
-                        let! msg = inbox.Receive()
-
-                        try
-                            tryUnsuccessfulResponse msg
-                            |> mergeMatcher msg trySubscriptionEvent
-                            |> mergeMatcher msg tryQueryResponse
-                            |> function
-                                | Ok(Some(UnSuccessfulResponseType msg)) -> handler.Post(UnSuccessfulResponse msg)
-                                | Ok(Some(SubscriptionResponseType SFocusCH)) -> messageParser.Post(FocusChanged msg)
-                                | Ok(Some(SubscriptionResponseType SBindingModesCH)) ->
-                                    messageParser.Post(BindingModesChanged msg)
-                                | Ok(Some(SubscriptionResponseType SPauseCH)) -> messageParser.Post(PausedChanged msg)
-                                | Ok(Some(SubscriptionResponseType SWorkspaceUP))
-                                | Ok(Some(SubscriptionResponseType SWorkspaceDeACT))
-                                | Ok(Some(SubscriptionResponseType SWorkspaceACT)) -> messageParser.Post(WorkspaceStar)
-                                | Ok(Some(QueryResponseType QWorkspaces)) -> messageParser.Post(QueryWorkspaces msg)
-                                | Ok(Some(QueryResponseType QPaused)) -> messageParser.Post(QueryPaused msg)
-                                | Ok(Some(QueryResponseType QBinding)) -> messageParser.Post(QueryBindingModes msg)
-                                | Ok _ -> messageParser.Post(Unhandled msg)
-                                | Error e ->
-                                    Log.Error("Error parsing message: {Ex}", e)
-                                    errorEvent.Trigger(ParseError e)
-                        with
-                        | :? OperationCanceledException as ex ->
-                            Log.Information "Parser cancelled"
-                            raise ex
-                        | ex ->
-                            Log.Error("Error parsing message: {Ex}", ex)
-                            errorEvent.Trigger(ParseError ex.Message)
-
-                        do! loop ()
-                    }
-
-                loop ())
-
-        agent.Error.Add(fun exn -> errorEvent.Trigger(AgentError exn))
-        agent
-
-    member this.SetWsClient(client: MailboxProcessor<WebSocketMessage>) = wsClient <- Some client
+    interface IDisposable with
+        member _.Dispose() = compositeD.Dispose()
 
 module CustomParsers =
     open FSharp.Data
     open JsonExtensions
+    open Parse
+
+    let logParseError subject err =
+        Log.Error("Error parsing {Subject}: {Err}", subject, err)
+
+    let successfulMessage (msg: string option) (success: bool) =
+        if success then
+            Ok true
+        else
+            Error(msg |> Option.defaultValue "Unspecified Error")
 
     let private extractResponseData (json: string) =
         let jsonData = JsonValue.Parse(json)
@@ -270,3 +265,25 @@ module CustomParsers =
 
     let tryExtractResponseData json =
         Result.tryCatch (fun () -> extractResponseData json)
+
+    let parseSuccess (json: string) =
+        parser {
+            let! msg = "error" ?= string
+            let! _ = "success" &= valid bool (successfulMessage msg)
+            return ()
+        }
+        |> Parser.parse json
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "unsuccessful response")
+
+    /// Parses output of 'Query Workspaces' that includes the windows.
+    let parseWorkspaces (json: string) =
+        parser {
+            let! msg = "error" ?= string
+            let! _ = "success" &= valid bool (successfulMessage msg)
+            let! data = "data.workspaces" &= list Workspaces.parse
+            return data
+        }
+        |> Parser.parse json
+        |> Result.mapError ParserError.asString
+        |> Result.teeError (logParseError "workspace response")

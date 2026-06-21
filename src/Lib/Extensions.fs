@@ -1,4 +1,4 @@
-﻿namespace GlazeWM.Tray.Models
+﻿namespace GlazeWM.Tray.Extensions
 
 [<RequireQualifiedAccess>]
 module Result =

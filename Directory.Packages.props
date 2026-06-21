@@ -3,24 +3,26 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
-    <PackageVersion Include="FSharp.Data" Version="8.1.7" />
+    <PackageVersion Include="FSharp.Data" Version="8.1.14" />
     <PackageVersion Include="FsToolkit.ErrorHandling" Version="5.2.0" />
     <PackageVersion Include="Serilog" Version="4.3.1" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
-    <PackageVersion Include="Farse" Version="0.8.0" />
+    <PackageVersion Include="Farse" Version="0.12.2" />
+    <PackageVersion Include="FSharp.Control.Reactive" Version="6.1.2" />
+    <PackageVersion Include="System.Reactive" Version="6.1.0" />
     <!-- Avalonia -->
     <PackageVersion Include="Avalonia.Desktop" Version="11.3.13" />
     <PackageVersion Include="Avalonia.FuncUI" Version="1.5.2" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.13" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.13" />
-    <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.13" />
     <PackageVersion Include="Huskui.Avalonia" Version="0.10.4" />
     <PackageVersion Include="MessageBox.Avalonia" Version="3.3.1.1" />
-    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.21.3" /> <!-- Tmds.DBus.Protocol CVE pin; transitive via Avalonia for Linux -->
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.21.3" />
+    <!-- Tmds.DBus.Protocol CVE pin; transitive via Avalonia for Linux -->
+    <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
     <!-- Testing Dependencies-->
-    <PackageVersion Include="Avalonia.Headless.NUnit" Version="11.3.13" /> 
+    <PackageVersion Include="Avalonia.Headless.NUnit" Version="11.3.13" />
     <PackageVersion Include="coverlet.collector" Version="8.0.1" />
     <PackageVersion Include="Fleck" Version="1.2.0" />
     <PackageVersion Include="FsUnit" Version="7.1.1" />

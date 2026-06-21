@@ -2,6 +2,7 @@
 
 open System
 open System.IO
+open Avalonia.Input.Platform
 open GlazeWM.Tray.Literals
 open Serilog.Core
 open Serilog.Events
@@ -30,3 +31,6 @@ module AppConfig =
         { LevelSwitch = LoggingLevelSwitch(LogEventLevel.Information)
           LogsDirectory = mkLogDir ()
           Port = port }
+
+type IViewsHelpers =
+    abstract member RunSyncQuery: string -> Result<string, string>

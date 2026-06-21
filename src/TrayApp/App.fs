@@ -1,14 +1,21 @@
 ﻿namespace GlazeWM.TrayApp.Application
 
 open System
+open System.Reactive.Concurrency
+open System.Reactive.Linq
+open System.Threading
 open Avalonia
 open Avalonia.Controls
 open Avalonia.Controls.ApplicationLifetimes
 open Avalonia.Controls.Notifications
 open Avalonia.Themes.Fluent
+open FSharp.Control.Reactive.Disposables
+open FSharp.Control.Reactive.Observable
 open GlazeWM.Tray.Literals
+open GlazeWM.Tray.MessageParser
 open GlazeWM.TrayApp.Models
 open Huskui.Avalonia
+open Lib.Tray
 open Serilog
 open GlazeWM.Tray.Models
 open GlazeWM.TrayApp
@@ -20,9 +27,12 @@ type App(config: AppConfig) as this =
     inherit Application()
 
     let trayItem = TrayItem(config)
+    let uri = Uri($"ws://localhost:{config.Port}/")
 
-    let mutable connection: GlazeWMConnection option = None
+    let mutable uiScheduler: SynchronizationContextScheduler = null // this is assigned once Avalonia initializes.
+    let mutable observers: IDisposable option = None
     let mutable mainWindow: MainWindow option = None
+    let mutable client: GlazeWMClient option = None
 
     /// Toggle show/hide of the main window
     let toggleMainWindow () =
@@ -33,84 +43,81 @@ type App(config: AppConfig) as this =
             showErrorMessage "App Error" "MainWindow is null, please restart the application"
         | Some w when w.IsVisible |> not ->
             w.Show()
-
-            if w.WindowState = WindowState.Minimized then
+            if w.WindowState = Avalonia.Controls.WindowState.Minimized then
                 w.WindowState <- WindowState.Normal
-
             w.Activate()
         | Some w -> w.Hide()
 
-    let cleanup (tray: TrayIcon) =
-        Log.Information("Shutting down...")
-        connection |> Option.iter (fun c -> (c :> IDisposable).Dispose())
-        tray.IsVisible <- false
-
-    /// Resets both the `parser` and `wsClient` references and prints an error message to the user.
-    let handleCommunicationError (msg: string) =
-        let text =
-            $"A fata error occured regarding communication with GlazeWM \n\n{msg}. \n\nCheck the logs for more \
-              details. To renew communication with GlazeWM after you make sure it runs correctly, please select \
-              'Reinitialize GlazeWM Connection' from the tray menu."
-
-        showErrorMessage "GlazeWM Communication Error" text
-        trayItem.OnCommunicationError()
-
-    let handleConnectionNotification notification =
-        match notification with
-        | ConnectionError msg -> handleCommunicationError msg
-        | Reconnected -> trayItem.Handle(SetReInitializeMenuEnabled false)
-        | BugNoCurrentWorkspace -> sendBugNotification "No current workspace"
-        | BugUnsetWsClient -> sendBugNotification "Unset wsClient"
-
-    let handleAgentError (ex: Exception) =
-        let text =
-            $"An fatal error occured in the application's agent:\n\n{ex.Message}.\n\nPlease restart the application!"
-
-        Log.Error(ex, "TrayIcon agent error:")
-        showErrorMessage "TrayIcon Agent Error" text
+    let triggerRefreshState () =
+        client
+        |> Option.tryDo (fun c -> [ QWorkspaces; QBinding; QPaused ] |> List.iter c.SendMessage)
 
     let runSyncQuery query =
-        match connection with
-        | Some c -> c.RunSyncQuery query
-        | None -> Error "BUG: Connection is None"
+        match client with
+        | Some c -> c.Query query
+        | None -> Error "BUG: GlazeWMClient is None"
 
-    let handleTrayMenuEvent (e: MenuEvent) : Unit =
+    member _.Cleanup(tray: TrayIcon) =
+        Log.Information("Shutting down...")
+        this.ClearGlazeClient()
+        tray.IsVisible <- false
+
+    member private _.OnTrayMenuEvent(e: MenuEvent) : Unit =
         match e with
-        | ReconnectRequested -> connection |> Option.tryDo _.Reconnect()
-        | RefreshRequested -> connection |> Option.tryDo _.RefreshState()
+        | ReconnectRequested ->
+            this.InitGlazeClient()
+            trayItem.OnConnectionRestored()
+        | RefreshRequested -> triggerRefreshState ()
         | ToggleMainWindow -> toggleMainWindow ()
         | Notify(title, body) -> mainWindow |> Option.tryDo _.Notify(title, body)
         | SwitchWorkspace workspaceName ->
-            connection
-            |> Option.tryDo (fun c -> c.Send $"{CFocusWorkspacePrefix} {workspaceName.Name}")
+            client
+            |> Option.tryDo (fun c -> c.SendMessage $"{CFocusWorkspacePrefix} {workspaceName.Name}")
 
-    let agent =
-        MailboxProcessor<ParsingOutput>.Start(fun inbox ->
-            let rec loop () =
-                async {
-                    let! msg = inbox.Receive()
+    /// Resets client connection and prints an error message to the user.
+    member private _.OnCommunicationError(err: exn) =
+        let text =
+            $"A fatal error occured regarding communication with GlazeWM \n\n{err.Message}. \n\nCheck the logs for \
+              more details. To renew communication with GlazeWM after you make sure it runs correctly, please select \
+              'Reinitialize GlazeWM Connection' from the tray menu."
 
-                    match msg with
-                    | Workspaces wn -> trayItem.Handle(WorkspacesChanged wn)
-                    | Paused p -> trayItem.Handle(PausedChanged p)
-                    | NewBindingModes cb -> trayItem.Handle(BindingModesChanged cb)
-                    | UnSuccessfulResponse msg ->
-                        Log.Error("Unsuccessful Response: {Message}", msg)
-                        mainWindow
-                        |> Option.tryDo (fun w ->
-                            w.Notify("Unsuccessful Response from GlazeWM", $"{msg}", NotificationType.Error))
+        showErrorMessage "GlazeWM Communication Error" text
+        this.ClearGlazeClient()
+        trayItem.OnConnectionError()
 
-                    return! loop ()
-                }
+    member private _.ClearGlazeClient() =
+        client |> Option.iter (fun c -> (c :> IDisposable).Dispose())
+        observers |> Option.iter (fun o -> o.Dispose())
+        client <- None
+        observers <- None
 
-            loop ())
+    member private _.InitGlazeClient() =
+        let client' = new GlazeWMClient(uri)
+        client <- Some client'
 
-    member private _.InitGlazeConnection() =
-        let connection' = new GlazeWMConnection(config, agent)
-        connection <- Some connection'
-        connection'.Notifications.Add(handleConnectionNotification)
+        let a =
+            client'.GlazeWmMessages
+                .DistinctUntilChanged()
+                .ObserveOn(uiScheduler)
+                .Scan(TrayIconState.empty, trayItem.Handle)
+                .Subscribe(ignore)
+        let b =
+            client'.Failures.Take(1).ObserveOn(uiScheduler).Subscribe(this.OnCommunicationError)
+        let c = client'.Warnings.ObserveOn(uiScheduler).Subscribe(this.OnParserWarnings)
+        observers <- compose [ a; b; c ] |> Some
 
-        connection'.RefreshState()
+        $"sub -e {SWorkspaceUP} {SWorkspaceACT} {SWorkspaceDeACT} {SBindingModesCH} {SPauseCH} {SFocusCH}"
+        |> client'.SendMessage
+        triggerRefreshState ()
+
+    member private _.OnParserWarnings(w: ParserWarnings) =
+        match w with
+        | UnsuccessfulResponse m ->
+            mainWindow
+            |> Option.tryDo _.Notify("Unsuccessful Response", m, NotificationType.Warning)
+        | ParserError _ -> () // TODO: we already log it. Consider notification with toggle
+        | UnexpectedError err -> sendBugNotification $"Un expected error: ${err}"
+        | NoCurrentWorkspace -> sendBugNotification NoCurrentWorkspace
 
     override _.Initialize() =
         this.Styles.Add(FluentTheme())
@@ -126,6 +133,7 @@ type App(config: AppConfig) as this =
         | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime ->
             // Make shut down explicit, Don't shut down when closing the main window
             desktopLifetime.ShutdownMode <- ShutdownMode.OnExplicitShutdown
+            uiScheduler <- SynchronizationContextScheduler(SynchronizationContext.Current)
             let w = MainWindow runSyncQuery
             mainWindow <- Some w
             trayItem.Initialize()
@@ -133,17 +141,15 @@ type App(config: AppConfig) as this =
             let icons = TrayIcons()
             icons.Add(tray)
             TrayIcon.SetIcons(this, icons)
-            agent.Error.Add(handleAgentError)
-            this.InitGlazeConnection()
-            trayItem.ErrorEvent.Add handleAgentError
-            trayItem.MenuEvent.Add handleTrayMenuEvent
+            this.InitGlazeClient()
+            trayItem.MenuEvent.Subscribe(this.OnTrayMenuEvent) |> ignore
 
             this.ActualThemeVariantChanged.Add(fun _ ->
                 Log.Debug("Theme variant changed, new variant is {Variant}", this.ActualThemeVariant)
                 // trigger recalculation of the icon
-                connection |> Option.tryDo _.RefreshState())
+                triggerRefreshState ())
 
-            desktopLifetime.Exit.Add(fun _ -> cleanup tray)
+            desktopLifetime.Exit.Add(fun _ -> this.Cleanup tray)
             tray.IsVisible <- true
 
             Log.Information("Application started")

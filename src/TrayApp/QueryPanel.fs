@@ -5,13 +5,14 @@ open Avalonia.Controls.Primitives
 open Avalonia.FuncUI
 open Avalonia.FuncUI.DSL
 open Avalonia.FuncUI.Types
-open Avalonia.Input.Platform
 open Avalonia.Layout
 open FSharp.Data
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.Models
 open GlazeWM.TrayApp.Icons
+open GlazeWM.TrayApp.Models
 open Serilog
+open GlazeWM.TrayApp.Views.SharedViews
 
 module QueryPanel =
     open FsToolkit.ErrorHandling.Operator.Result
@@ -24,7 +25,7 @@ module QueryPanel =
 
     type private JsonItem = JsonItem of name: string * value: JsonValue
 
-    let view (f: string -> Result<string, string>) (getClipboard: unit -> IClipboard) =
+    let view (vh: IViewsHelpers) =
         Component(fun ctx ->
             let state = ctx.useState State.Empty
             let query = ctx.useState ""
@@ -43,7 +44,7 @@ module QueryPanel =
                             state.Set Querying
                             // We need to run this in a separate thread to not block the UI thread
                             async {
-                                match f queryText >>= CustomParsers.tryExtractResponseData with
+                                match vh.RunSyncQuery queryText >>= CustomParsers.tryExtractResponseData with
                                 | Ok(GlazeWMRawResponse.Data r) -> state.Set(ResponseData r)
                                 | Ok(GlazeWMRawResponse.ErrorMsg e) -> state.Set(ErrorMsg e)
                                 | Error e -> state.Set(ErrorMsg e)
@@ -61,11 +62,11 @@ module QueryPanel =
                 && state.Current <> Querying
 
             let copyStateToClipboard _ =
-                let clipboard = getClipboard ()
+                let top = TopLevel.GetTopLevel ctx.control
                 match state.Current with
                 | ResponseData r ->
                     let data = r.ToString(JsonSaveOptions.None)
-                    clipboard.SetTextAsync(data) |> Async.AwaitTask |> ignore
+                    top.Clipboard.SetTextAsync(data) |> Async.AwaitTask |> ignore
                     copied.Set true
                     async {
                         do! Async.Sleep 1500
@@ -92,12 +93,6 @@ module QueryPanel =
                       | JsonValue.Array _ -> TextBlock.text $"{name}" ]
 
 
-            let waiting: IView =
-                TextBlock.create [ TextBlock.margin 5.0; TextBlock.text "Waiting for response..." ]
-            let empty: IView =
-                TextBlock.create [ TextBlock.margin 5.0; TextBlock.text "Please enter a query." ]
-            let error msg : IView =
-                TextBlock.create [ TextBlock.foreground "red"; TextBlock.text msg ]
             let data (json: JsonItem) : IView =
                 Component.create (
                     $"treeview-{collapseKey.Current}",
@@ -108,8 +103,8 @@ module QueryPanel =
                 )
             let responseView () =
                 match state.Current with
-                | Empty -> empty
-                | Querying -> waiting
+                | Empty -> simplePanel "Please enter a query."
+                | Querying -> simplePanel "Waiting for response..."
                 | ErrorMsg e -> error e
                 | ResponseData r -> data (JsonItem("data", r))
 

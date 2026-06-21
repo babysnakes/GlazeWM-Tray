@@ -1,12 +1,12 @@
 ﻿module LibTests.MessageParserTests
 
+open System.Reactive.Subjects
 open FsUnit
 open LibTests.CommonHelpers
 open NUnit.Framework
 open GlazeWM.Tray.Literals
 open GlazeWM.Tray.MessageParser
 open GlazeWM.Tray.Models
-open GlazeWM.Tray.WebSocketClient
 
 module ``workspace response parsing tests`` =
 
@@ -14,16 +14,17 @@ module ``workspace response parsing tests`` =
     let ``correctly parses workspace response`` () =
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
+        use subject = new Subject<string>()
+        let wsc = mkIWsClient ignore subject
 
-        let handler: MailboxProcessor<ParsingOutput> =
-            mkDemoAgent (fun s ->
-                match s with
-                | Workspaces r -> tcs.SetResult(r)
-                | _ -> ())
+        let handler msg =
+            match msg with
+            | Workspaces r -> tcs.SetResult(r)
+            | _ -> ()
 
-        let parser = Parser(handler)
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post queryWorkspacesResponse
+        use parser = new Parser(wsc)
+        parser.GlazewmMessages.Subscribe handler |> ignore
+        subject.OnNext queryWorkspacesResponse
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
         let result = tcs.Task.Result
         result.Current.Name |> should equal "2"
@@ -35,13 +36,12 @@ module ``workspace response parsing tests`` =
     let ``MessageParser emits error when workspace response does not contain current workspace`` () =
         let queryWorkspacesResponse =
             loadFixture "basic-workspaces-response-with-no-focus.json"
-
-        let tcs = System.Threading.Tasks.TaskCompletionSource<MessageParserEvent>()
-        let handler = mkDemoAgent ignore
-        let parser = Parser(handler)
-        parser.Error.Add tcs.SetResult
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post queryWorkspacesResponse
+        let tcs = System.Threading.Tasks.TaskCompletionSource<ParserWarnings>()
+        use subject = new Subject<string>()
+        let wsc = mkIWsClient ignore subject
+        use parser = new Parser(wsc)
+        parser.Warnings.Subscribe tcs.SetResult |> ignore
+        subject.OnNext queryWorkspacesResponse
 
         if not (tcs.Task.Wait(1000)) then
             Assert.Fail("timeout waiting for event error")
@@ -57,19 +57,20 @@ module ``focus-changed-event workflow tests`` =
         let eventJson = loadFixture "basic-focus-changed-event.json"
         let tcs = System.Threading.Tasks.TaskCompletionSource<WorkspacesNotification>()
         let mutable counter = 0
+        use subject = new Subject<string>()
+        let wsc = mkIWsClient ignore subject
 
-        let handler: MailboxProcessor<ParsingOutput> =
-            mkDemoAgent (function
-                | Workspaces w ->
-                    counter <- counter + 1
+        let handler msg =
+            match msg with
+            | Workspaces w ->
+                counter <- counter + 1
+                if counter = 2 then tcs.SetResult(w)
+            | message -> TestContext.Progress.WriteLine($"handler received message: {message}")
 
-                    if counter = 2 then tcs.SetResult(w)
-                | message -> TestContext.Progress.WriteLine($"handler received message: {message}"))
-
-        let parser = Parser(handler)
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post queryWorkspacesResponse // Make sure the parser has a state
-        dispatcher.Post eventJson
+        use parser = new Parser(wsc)
+        parser.GlazewmMessages.Subscribe handler |> ignore
+        subject.OnNext queryWorkspacesResponse // Make sure the parser has a state
+        subject.OnNext eventJson
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
         let result = tcs.Task.Result
         // The expected current workspace is calculated by joining the two JSON files loaded.
@@ -78,98 +79,84 @@ module ``focus-changed-event workflow tests`` =
 
     [<Test>]
     let ``when focused window parent id is not found, it triggers a workspace refresh`` () =
-        let tcs = System.Threading.Tasks.TaskCompletionSource<bool>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
         let queryWorkspacesResponse = loadFixture "basic-workspaces-response.json"
         let eventJson = loadFixture "focus-changed-event-with-no-matching-workspace.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
-
-        let mockWsClient =
-            mkDemoAgent (function
-                | SendMessage QWorkspaces -> tcs.SetResult(true)
-                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
-
-        let parser = Parser(handler)
-        parser.SetWsClient mockWsClient
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post queryWorkspacesResponse // Make sure the parser has a state
-        dispatcher.Post eventJson
+        use subject = new Subject<string>()
+        let mockSend _msg = tcs.SetResult(())
+        let wsc = mkIWsClient mockSend subject
+        use parser = new Parser(wsc)
+        subject.OnNext queryWorkspacesResponse // Make sure the parser has a state
+        subject.OnNext eventJson
 
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout")
-        let result = tcs.Task.Result
-        result |> should be True
 
     [<Test>]
     let ``when state is empty, it triggers a workspace refresh`` () =
-        let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<string>()
         let eventJson = loadFixture "focus-changed-event-with-no-matching-workspace.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
-
-        let mockWsClient = mkDemoAgent tcs.SetResult
-
-        let parser = Parser(handler)
-        parser.SetWsClient mockWsClient
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post eventJson
-
+        use subject = new Subject<string>()
+        let wcs = mkIWsClient tcs.SetResult subject
+        use parser = new Parser(wcs)
+        subject.OnNext eventJson
         if not (tcs.Task.Wait(1000)) then
             Assert.Fail("Timeout waiting for workspace query message")
 
         let result = tcs.Task.Result
-        result |> should equal (SendMessage QWorkspaces)
+        result |> should equal QWorkspaces
 
     [<Test>]
     let ``when emitted with other container then window, emits workspace query`` () =
-        let tcs = System.Threading.Tasks.TaskCompletionSource<WebSocketMessage>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<string>()
         let eventJson = loadFixture "focus-changed-event-with-workspace-container.json"
-        let handler: MailboxProcessor<ParsingOutput> = mkDemoAgent ignore
-        let mockWsClient = mkDemoAgent tcs.SetResult
-        let parser = Parser(handler)
-        parser.SetWsClient mockWsClient
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post eventJson
-
+        use subject = new Subject<string>()
+        let wsc = mkIWsClient tcs.SetResult subject
+        use parser = new Parser(wsc)
+        subject.OnNext eventJson
         if not (tcs.Task.Wait(1000)) then
             Assert.Fail("Timeout: non window container")
 
         let result = tcs.Task.Result
-        result |> should equal (SendMessage "query workspaces")
+        result |> should equal QWorkspaces
 
 module ``Unsuccessful Responses`` =
     [<Test>]
     let ``unsuccessful response with error message returns the error`` () =
-        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<string>()
         let response = loadFixture "error-response-with-error.json"
+        use subject = new Subject<string>()
+        let handler (w: ParserWarnings) =
+            match w with
+            | UnsuccessfulResponse e -> tcs.SetResult e
+            | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}")
+        let wsc = mkIWsClient ignore subject
 
-        let handler =
-            mkDemoAgent (fun s ->
-                match s with
-                | UnSuccessfulResponse _ -> tcs.SetResult()
-                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
-
-        let parser = Parser(handler)
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post response
+        use parser = new Parser(wsc)
+        parser.Warnings.Subscribe handler |> ignore
+        subject.OnNext response
 
         if not (tcs.Task.Wait(1000)) then
             Assert.Fail("timeout waiting for error message")
+        let result = tcs.Task.Result
+        result |> should contain "unrecognized subcommand"
 
     [<Test>]
     let ``unsuccessful response without error message returns descriptive error`` () =
         let tcs = System.Threading.Tasks.TaskCompletionSource<string>()
         let response = loadFixture "error-response-without-error.json"
+        use subject = new Subject<string>()
+        let handler (w: ParserWarnings) =
+            match w with
+            | UnsuccessfulResponse r -> tcs.SetResult(r)
+            | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}")
+        let wsc = mkIWsClient ignore subject
 
-        let handler =
-            mkDemoAgent (function
-                | UnSuccessfulResponse r -> tcs.SetResult(r)
-                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
-
-        let parser = Parser(handler)
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post response
+        use parser = new Parser(wsc)
+        parser.Warnings.Subscribe handler |> ignore
+        subject.OnNext response
 
         if not (tcs.Task.Wait(1000)) then
             Assert.Fail("timeout waiting for error message")
-
         let result = tcs.Task.Result
         result |> should equal "Unspecified Error"
 
@@ -188,16 +175,17 @@ module ``Pause status`` =
     let ``Correctly parses pause status`` (input: TestInput) =
         let tcs = System.Threading.Tasks.TaskCompletionSource<bool>()
         let response = loadFixture input.File
+        use subject = new Subject<string>()
+        let wsc = mkIWsClient ignore subject
+        use parser = new Parser(wsc)
 
-        let handler =
-            mkDemoAgent (function
-                | Paused p -> tcs.SetResult(p)
-                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
+        let handler (m: ParsedMessage) =
+            match m with
+            | Paused p -> tcs.SetResult(p)
+            | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}")
+        parser.GlazewmMessages.Subscribe handler |> ignore
 
-        let parser = Parser(handler)
-        let dispatcher = parser.Dispatcher()
-
-        dispatcher.Post response
+        subject.OnNext response
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout: pause status")
         let result = tcs.Task.Result
         result |> should equal input.Expected
@@ -219,16 +207,17 @@ module ``Binding Modes`` =
     let ``Correctly parses binding modes`` (input: TestInput) =
         let tcs = System.Threading.Tasks.TaskCompletionSource<bool>()
         let response = loadFixture input.File
+        use subject = new Subject<string>()
+        let wsc = mkIWsClient ignore subject
+        use parser = new Parser(wsc)
 
         let handler =
-            mkDemoAgent (function
-                | NewBindingModes b -> tcs.SetResult(b)
-                | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}"))
+            function
+            | NewBindingModes b -> tcs.SetResult(b)
+            | invalid -> TestContext.Error.WriteLine($"unexpected message: {invalid}")
+        parser.GlazewmMessages.Subscribe handler |> ignore
 
-        let parser = Parser(handler)
-        let dispatcher = parser.Dispatcher()
-
-        dispatcher.Post response
+        subject.OnNext response
         if not (tcs.Task.Wait(1000)) then Assert.Fail("timeout: bindings")
         let result = tcs.Task.Result
         result |> should equal input.Expected
@@ -241,23 +230,20 @@ module ``Workspace activated-deactivated-updated`` =
 
     [<TestCaseSource(nameof event)>]
     let ``Workspace-* events trigger workspaces query`` (evt: string) =
-        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
+        let tcs = System.Threading.Tasks.TaskCompletionSource<string>()
         let json = mkMinimalJson evt
-        let handler = mkDemoAgent ignore
+        use subject = new Subject<string>()
+        let mockSendMsg s = tcs.SetResult s
+        let wsc = mkIWsClient mockSendMsg subject
+        use parser = new Parser(wsc)
 
-        let mockWsClient =
-            mkDemoAgent (function
-                | SendMessage QWorkspaces -> tcs.SetResult()
-                | invalid -> TestContext.Progress.WriteLine($"unexpected message: {invalid}"))
-
-        let parser = Parser(handler)
-        parser.SetWsClient mockWsClient
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post json
+        subject.OnNext json
 
         if not (tcs.Task.Wait(1000)) then Assert.Fail($"timeout: {evt}")
+        let result = tcs.Task.Result
+        result |> should equal QWorkspaces
 
-module ``Actor Resilience Test`` =
+module ``Parsers Resilience Test`` =
     type TestInput = { File: string; ErrorMessage: string }
 
     let mkInvalidJsonTypes () =
@@ -265,9 +251,8 @@ module ``Actor Resilience Test`` =
             ErrorMessage = "'n' is an invalid start" }
           { File = "invalid-workspace-response.json"
             ErrorMessage = "$.data.workspaces[0].name" }
-          // This case is unique, it fails before parsing for lack of wsClient
           { File = "invalid-focus-changed-event.json"
-            ErrorMessage = "UnsetWsClient" }
+            ErrorMessage = "$.data.focusedContainer.parentId" }
           { File = "binding-modes-invalid.json"
             ErrorMessage = "$.data.newBindingModes[0].name" }
           { File = "error-paused-query-response.json"
@@ -281,49 +266,62 @@ module ``Actor Resilience Test`` =
         let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
         let goodWorkspaceQuery = loadFixture "basic-workspaces-response.json"
         let mutable error = ""
+        use subject = new Subject<string>()
+        let wsc = mkIWsClient ignore subject
 
-        let handler =
-            mkDemoAgent (function
-                | Workspaces _ -> tcs.SetResult()
-                | msg -> TestContext.Progress.WriteLine($"handler invalid message: {msg}"))
+        let handleParsed m =
+            match m with
+            | Workspaces _ -> tcs.SetResult()
+            | msg -> TestContext.Progress.WriteLine($"handler invalid message: {msg}")
 
-        let errorHandler =
-            function
-            | ParseError e ->
+        let handleWarnings (w: ParserWarnings) =
+            match w with
+            | ParserError e ->
                 TestContext.Progress.WriteLine($"error handler parse error: {e}")
                 error <- e
-            | UnsetWsClient -> error <- "UnsetWsClient"
             | msg -> TestContext.Progress.WriteLine($"error handler invalid message: {msg}")
 
-        let parser = Parser(handler)
-        parser.Error.Add errorHandler
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post invalidJson
-        dispatcher.Post goodWorkspaceQuery
+        use parser = new Parser(wsc)
+        parser.Warnings.Subscribe handleWarnings |> ignore
+        parser.GlazewmMessages.Subscribe handleParsed |> ignore
+        subject.OnNext invalidJson
+        subject.OnNext goodWorkspaceQuery
 
         if not (tcs.Task.Wait(1000)) then
             Assert.Fail($"timeout processing input: {input}")
 
         error |> should contain input.ErrorMessage
 
+module ``Custom Parsers - Workspaces`` =
+
     [<Test>]
-    let ``wsClient option emits specific event when called before being set`` () =
-        let tcs = System.Threading.Tasks.TaskCompletionSource<unit>()
+    let ``parse data wrapper returns error on unsuccessful response`` () =
+        let workspaceResponse = loadFixture "basic-workspaces-response.json"
+        let parsed = workspaceResponse |> CustomParsers.parseWorkspaces |> Result.unwrap
+        parsed |> should haveLength 2
+        parsed[0].Children |> should haveLength 4
+        parsed[1].Children |> should haveLength 3
 
-        let json =
-            """{"messageType":"event_subscription","data":{"eventType":"workspace_deactivated"},"error":null,"success":true}"""
+    [<Test>]
+    let ``correctly identify unsuccessful response`` () =
+        let json = loadFixture "error-response-with-error.json"
+        let parsed = json |> CustomParsers.parseWorkspaces
+        match parsed with
+        | Ok _ -> Assert.Fail("expected error")
+        | Error e -> e |> should contain "unrecognized subcommand"
 
-        let handler =
-            mkDemoAgent (fun inp -> TestContext.Progress.WriteLine($"handler: {inp}"))
+    [<Test>]
+    let ``unsuccessful response with empty error prints default error message`` () =
+        let json = loadFixture "error-response-without-error.json"
+        let parsed = json |> CustomParsers.parseWorkspaces
+        match parsed with
+        | Ok _ -> Assert.Fail("expected error")
+        | Error e -> e |> should contain "Unspecified Error"
 
-        let parser = Parser(handler)
-
-        parser.Error.Add (function
-            | UnsetWsClient -> tcs.SetResult()
-            | invalid -> TestContext.Progress.WriteLine($"unexpected message: {invalid}"))
-
-        let dispatcher = parser.Dispatcher()
-        dispatcher.Post json
-
-        if not (tcs.Task.Wait(1000)) then
-            Assert.Fail("timeout unset wsClient")
+    [<Test>]
+    let ``be resilient to invalid json`` () =
+        let json = loadFixture "non-json.json"
+        let parsed = json |> CustomParsers.parseWorkspaces
+        match parsed with
+        | Ok _ -> Assert.Fail("expected error")
+        | Error e -> e |> should contain "Could not parse JSON"

@@ -4,22 +4,40 @@ GlazeWM-Tray is a system tray application to view GlazeWM status and perform som
 currently supports:
 
 - Showing the current active workspace (regardless of the monitor it is on). Only a single lowercase letter/digit is
-  displayed - if the name is longer, the first letter/digit is used. The display name (if defined) is displayed in the
+  displayed – if the name is longer, the first letter/digit is used. The display name (if defined) is displayed in the
   menu / tooltip. If the name does not start with a letter or digit, it's displayed as a question mark.
 - Indication if GlazeWM is paused (by grey letter/digit).
 - Indication if using a custom binding mode (currently with question mark).
 - Show all active workspaces (in menu) and use this menu to navigate to a workspace.
-- Reconnect to GlazeWM (e.g. if GlazeWM quit unexpectedly).
-- Refresh it's status - this could happen if you have a shortcut that performs several tasks (e.g. switch to workspace
+- Reconnect to GlazeWM (e.g., if GlazeWM quit unexpectedly).
+- Refresh it's status – this could happen if you have a shortcut that performs several tasks (e.g. switch to workspace
   and pause) GlazeWM does not send event for every task so some state might be be lost.
 - A Gui for querying _GlazeWM_ (e.g., `query workspaces`) and displaying the result in a TreeView.
+- A Gui panel to display all windows by workspaces, allow filtering by name/process name, and right-click on a window
+  for supported operation (currently copy data, and ignore).
 - Left click on the tray icon to open the Gui (on _MacOS_ click on the icon and select _Show/hide Main Window_).
 
 Since version `3.10` _GlazeWM_ runs on _MacOS_, so this app also runs on _MacOS_, but tested only lightly.
 
+### ScreenShots
+
+- *Tray icon with menu*:
+
+  ![Tray Icon](./resources/screenshots/tray-icon-with-manu.png)
+
+
+- *Query Panel with rendering JSON in a TreeView*:
+
+  ![Query Panel](./resources/screenshots/query-panel.png)
+
+
+- *Windows list panel with filtering and context menu*:
+
+  ![Windows List Panel](./resources/screenshots/windows-panel.png)
+
 ### Installation
 
-GlazeWM-Tray can be downloaded from the [releases page][releases] as a zip file - make sure you download the
+GlazeWM-Tray can be downloaded from the [releases page][releases] as a zip file – make sure you download the
 architecture that matches your system.
 
 On _Windows_, extract the zip to some directory, optionally create a link for GlazeWM-Tray.exe. Once running for the

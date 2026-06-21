@@ -4,6 +4,7 @@ open System.IO
 open Avalonia
 open Avalonia.Controls
 open Avalonia.VisualTree
+open GlazeWM.TrayApp.Models
 open NUnit.Framework
 
 [<RequireQualifiedAccess>]
@@ -48,9 +49,8 @@ let loadFixture fileName =
     let fixturePath = Path.Combine("Fixtures", fileName)
     File.ReadAllText fixturePath
 
-let printElements (window: Window) =
-    window.GetVisualDescendants()
-    |> Seq.map (fun v -> v.GetType().Name)
-    |> Seq.iter TestContext.Progress.WriteLine
-
 let expectTrue (message: string) (tested: bool) = Assert.That(tested, message)
+
+let mkViewHesHelpers runSync =
+    { new IViewsHelpers with
+        member _.RunSyncQuery query = runSync query }
