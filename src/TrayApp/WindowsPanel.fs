@@ -47,6 +47,120 @@ module WindowsPanel =
         |> List.choose id
         |> fun lines -> String.Join(Environment.NewLine, lines)
 
+    let private windowCard (lastSync: IWritable<DateTime>) (vh: IViewsHelpers) (w: Window) : IView =
+        Component.create (
+            string w.Id,
+            fun ctx ->
+                let lastSync = ctx.usePassed lastSync
+                Border.create
+                    [ Border.classes [ "window-card" ]
+                      Border.cornerRadius 6
+                      Border.padding 8
+                      Border.child (
+                          Grid.create
+                              [ Grid.horizontalAlignment HorizontalAlignment.Left
+                                Grid.name $"window-panel-id-{w.Id}"
+                                Grid.columnDefinitions "Auto,Auto"
+                                Grid.rowDefinitions "Auto,Auto,Auto"
+                                Grid.children (
+                                    [ windowPanel "Title" w.Title 0
+                                      windowPanel "Process" w.ProcessName 1
+                                      windowPanel "Size" $"{w.Width}x{w.Height}  [{w.State}]" 2 ]
+                                    |> List.concat
+                                ) ]
+                      )
+                      ToolTip.tip (mkToolTip w)
+                      Border.contextMenu (
+                          ContextMenu.create
+                              [ ContextMenu.viewItems
+                                    [ MenuItem.create
+                                          [ MenuItem.header "Copy"
+                                            ToolTip.tip "Copy window data to clipboard"
+                                            MenuItem.onClick (fun _ ->
+                                                let topLevel = TopLevel.GetTopLevel ctx.control
+                                                let data = mkToolTip w
+                                                topLevel.Clipboard.SetTextAsync(data) |> Async.AwaitTask |> ignore) ]
+                                      MenuItem.create
+                                          [ MenuItem.header "Ignore"
+                                            ToolTip.tip "Ignore this specific window"
+                                            MenuItem.onClick (fun _ ->
+                                                async {
+                                                    let owner =
+                                                        TopLevel.GetTopLevel ctx.control :?> Avalonia.Controls.Window
+                                                    let! confirmed =
+                                                        confirmDialog
+                                                            owner
+                                                            $"Ignore window '{w.Title}'?\n\n This will take affect until you close the window or restart GlazeWM."
+                                                        |> Async.AwaitTask
+                                                    if confirmed then
+                                                        async {
+                                                            vh.RunSyncQuery $"command --id {w.Id} ignore"
+                                                            |> Result.bind CustomParsers.parseSuccess
+                                                            |> notifyIfError "Error ignoring window" ctx
+                                                            // reset list to avoid confusion
+                                                            lastSync.Set DateTime.Now
+                                                        }
+                                                        |> Async.Start
+                                                }
+                                                |> Async.StartImmediate) ] ] ]
+                      ) ]
+        )
+
+
+    let private workspaceExpander filter lastSync state vh (initial: Workspace) : IView =
+        Component.create (
+            string initial.Id,
+            fun ctx ->
+                let lastSync = ctx.usePassed lastSync
+                let filter = ctx.usePassedRead filter
+                let state = ctx.usePassedRead state
+                let ws = ctx.useState initial // check comment on useEffect for reason
+                let windows =
+                    ws.Current.Children
+                    |> List.choose (Workspaces.filterWindow filter.Current)
+                    |> List.map (windowCard lastSync vh)
+                let windowsCount = List.length ws.Current.Children
+                let filteredWindowsCount = List.length windows
+                let filterHeader =
+                    if windowsCount <> filteredWindowsCount then
+                        $" - showing {filteredWindowsCount} filtered "
+                        + (pluralize "window" filteredWindowsCount)
+                        + " out of {windowsCount}"
+                    else
+                        $" - {windowsCount} " + (pluralize "window" windowsCount)
+
+                // This solves a bug that because of race condition, the panel does not refresh if the actual
+                // data is not saved in a context state.
+                ctx.useEffect (
+                    handler =
+                        (fun _ ->
+                            match state.Current with
+                            | ResponseData workspaces ->
+                                workspaces |> List.tryFind (fun w -> w.Id = initial.Id) |> Option.iter ws.Set
+                            | _ -> ()),
+                    triggers = [ EffectTrigger.AfterChange state ]
+                )
+
+                Expander.create
+                    [ Expander.isEnabled (filteredWindowsCount > 0)
+                      Expander.header (
+                          ws.Current.DisplayName
+                          |> Option.defaultValue $"Workspace {ws.Current.Name}{filterHeader}"
+                      )
+                      Expander.padding 0
+                      Expander.content (
+                          Border.create
+                              [ Border.classes [ "workspace-content" ]
+                                Border.padding 12
+                                Border.child (
+                                    StackPanel.create
+                                        [ StackPanel.classes [ "workspace-content" ]
+                                          StackPanel.spacing 12
+                                          StackPanel.children windows ]
+                                ) ]
+                      ) ]
+        )
+
     let view (vh: IViewsHelpers) =
         Component(fun ctx ->
             let state = ctx.useState (State.ResponseData List.empty)
@@ -80,67 +194,6 @@ module WindowsPanel =
                 triggers = [ EffectTrigger.AfterInit ]
             )
 
-            let rec windowCard (w: Window) : IView =
-                Component.create (
-                    string w.Id,
-                    fun ctx ->
-                        Border.create
-                            [ Border.classes [ "window-card" ]
-                              Border.cornerRadius 6
-                              Border.padding 8
-                              Border.child (
-                                  Grid.create
-                                      [ Grid.horizontalAlignment HorizontalAlignment.Left
-                                        Grid.name $"window-panel-id-{w.Id}"
-                                        Grid.columnDefinitions "Auto,Auto"
-                                        Grid.rowDefinitions "Auto,Auto,Auto"
-                                        Grid.children (
-                                            [ windowPanel "Title" w.Title 0
-                                              windowPanel "Process" w.ProcessName 1
-                                              windowPanel "Size" $"{w.Width}x{w.Height}  [{w.State}]" 2 ]
-                                            |> List.concat
-                                        ) ]
-                              )
-                              ToolTip.tip (mkToolTip w)
-                              Border.contextMenu (
-                                  ContextMenu.create
-                                      [ ContextMenu.viewItems
-                                            [ MenuItem.create
-                                                  [ MenuItem.header "Copy"
-                                                    ToolTip.tip "Copy window data to clipboard"
-                                                    MenuItem.onClick (fun _ ->
-                                                        let topLevel = TopLevel.GetTopLevel ctx.control
-                                                        let data = mkToolTip w
-                                                        topLevel.Clipboard.SetTextAsync(data)
-                                                        |> Async.AwaitTask
-                                                        |> ignore) ]
-                                              MenuItem.create
-                                                  [ MenuItem.header "Ignore"
-                                                    ToolTip.tip "Ignore this specific window"
-                                                    MenuItem.onClick (fun _ ->
-                                                        async {
-                                                            let owner =
-                                                                TopLevel.GetTopLevel ctx.control
-                                                                :?> Avalonia.Controls.Window
-                                                            let! confirmed =
-                                                                confirmDialog
-                                                                    owner
-                                                                    $"Ignore window '{w.Title}'?\n\n This will take affect until you close the window or restart GlazeWM."
-                                                                |> Async.AwaitTask
-                                                            if confirmed then
-                                                                async {
-                                                                    vh.RunSyncQuery $"command --id {w.Id} ignore"
-                                                                    |> Result.bind CustomParsers.parseSuccess
-                                                                    |> notifyIfError "Error ignoring window" ctx
-                                                                    // reset list to avoid confusion
-                                                                    lastSync.Set DateTime.Now
-                                                                }
-                                                                |> Async.Start
-                                                        }
-                                                        |> Async.StartImmediate) ] ] ]
-                              ) ]
-                )
-
             let filterInput =
                 Grid.create
                     [ DockPanel.dock Dock.Bottom
@@ -167,48 +220,11 @@ module WindowsPanel =
                                               Button.isEnabled state.Current.IsResponseData
                                               Button.onClick (fun _ -> lastSync.Set(DateTime.Now)) ] ] ] ] ]
 
-            let workspaceExpander (filter: IReadable<string>) (ws: Workspace) : IView =
-                Component.create (
-                    string ws.Id,
-                    fun ctx ->
-                        let filter = ctx.usePassedRead filter
-                        let windows =
-                            ws.Children
-                            |> List.choose (Workspaces.filterWindow filter.Current)
-                            |> List.map windowCard
-                        let windowsCount = List.length ws.Children
-                        let filteredWindowsCount = List.length windows
-                        let filterHeader =
-                            if windowsCount <> filteredWindowsCount then
-                                $" - showing {filteredWindowsCount} filtered "
-                                + (pluralize "window" filteredWindowsCount)
-                                + " out of {windowsCount}"
-                            else
-                                $" - {windowsCount} " + (pluralize "window" windowsCount)
-
-                        Expander.create
-                            [ Expander.isEnabled (filteredWindowsCount > 0)
-                              Expander.header (
-                                  ws.DisplayName |> Option.defaultValue $"Workspace {ws.Name}{filterHeader}"
-                              )
-                              Expander.padding 0
-                              Expander.content (
-                                  Border.create
-                                      [ Border.classes [ "workspace-content" ]
-                                        Border.padding 12
-                                        Border.child (
-                                            StackPanel.create
-                                                [ StackPanel.classes [ "workspace-content" ]
-                                                  StackPanel.spacing 12
-                                                  StackPanel.children windows ]
-                                        ) ]
-                              ) ]
-                )
 
             let renderWorkspaces (ws: Workspace list) : IView =
                 StackPanel.create
                     [ StackPanel.orientation Orientation.Vertical
-                      StackPanel.children (List.map (workspaceExpander filter) ws) ]
+                      StackPanel.children (List.map (workspaceExpander filter lastSync state vh) ws) ]
 
             let renderPanel () =
                 match state.Current with
