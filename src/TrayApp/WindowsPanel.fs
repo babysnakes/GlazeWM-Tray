@@ -216,8 +216,8 @@ module WindowsPanel =
                                             [ Button.name "query-button"
                                               Button.margin (4.0, 0.0, 0.0, 0.0)
                                               Button.content (pathIcon refreshIcon)
-                                              ToolTip.tip $"Refresh windows list (last refresh: {lastSync.Current}"
-                                              Button.isEnabled state.Current.IsResponseData
+                                              ToolTip.tip $"Refresh windows list (last refresh: {lastSync.Current})"
+                                              Button.isEnabled (not state.Current.IsQuerying)
                                               Button.onClick (fun _ -> lastSync.Set(DateTime.Now)) ] ] ] ] ]
 
 
