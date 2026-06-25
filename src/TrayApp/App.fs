@@ -23,11 +23,11 @@ open GlazeWM.TrayApp.Helpers
 open GlazeWM.TrayApp.Helpers.Notifications
 open GlazeWM.TrayApp.Views
 
-type App(config: AppConfig) as this =
+type App(runtimeEnv: RuntimeEnvironment) as this =
     inherit Application()
 
-    let trayItem = TrayItem(config)
-    let uri = Uri($"ws://localhost:{config.Port}/")
+    let trayItem = TrayItem(runtimeEnv)
+    let uri = Uri($"ws://localhost:{runtimeEnv.Config.Port}/")
 
     let mutable uiScheduler: SynchronizationContextScheduler = null // this is assigned once Avalonia initializes.
     let mutable observers: IDisposable option = None
@@ -153,5 +153,6 @@ type App(config: AppConfig) as this =
             tray.IsVisible <- true
 
             Log.Information("Application started")
+            if runtimeEnv.Config.StartWithWindow then toggleMainWindow ()
 
         | _ -> ()

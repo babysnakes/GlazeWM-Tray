@@ -4,8 +4,7 @@
 let GlazeWMDefaultPort = 6123
 
 [<Literal>]
-// The environment variable containing GlazeWM port (for development)
-let PortDevEnvVar = "GLAZEWM_TRAY_PORT"
+let AppConfigDirPostfixEnv = "GLAZEWM_CONFIG_DIR_POSTFIX"
 
 [<Literal>]
 let QWorkspaces = "query workspaces"

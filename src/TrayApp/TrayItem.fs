@@ -42,7 +42,7 @@ module Assets =
             name, WindowIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", $"{name}.ico")))
         |> Map.ofList
 
-type TrayItem(config: AppConfig) =
+type TrayItem(runtimeEnv: RuntimeEnvironment) =
 
     let reInitializeMenu = NativeMenuItem(Header = "Reinitialize GlazeWM Connection")
     let menuEvent = Event<MenuEvent>()
@@ -76,18 +76,18 @@ type TrayItem(config: AppConfig) =
         toggleItem.Click.Add(fun _ -> menuEvent.Trigger ToggleMainWindow)
 
         let openLogsMenu = NativeMenuItem(Header = "Open Logs Directory")
-        openLogsMenu.Click.Add(fun _ -> openDirectory config.LogsDirectory)
+        openLogsMenu.Click.Add(fun _ -> openDirectory runtimeEnv.Config.LogsDirectory)
 
         let toggleDebug =
             NativeMenuItem(Header = "Verbose Logging", ToggleType = NativeMenuItemToggleType.CheckBox)
 
-        toggleDebug.IsChecked <- false
+        toggleDebug.IsChecked <- (runtimeEnv.LevelSwitch.MinimumLevel = Events.LogEventLevel.Debug)
 
         toggleDebug.Click.Add(fun _ ->
             if toggleDebug.IsChecked then
-                config.LevelSwitch.MinimumLevel <- Events.LogEventLevel.Debug
+                runtimeEnv.LevelSwitch.MinimumLevel <- Events.LogEventLevel.Debug
             else
-                config.LevelSwitch.MinimumLevel <- Events.LogEventLevel.Information)
+                runtimeEnv.LevelSwitch.MinimumLevel <- Events.LogEventLevel.Information)
 
         let quitItem = NativeMenuItem(Header = "Quit")
         quitItem.Click.Add(fun _ -> desktopLifetime.Shutdown(0))

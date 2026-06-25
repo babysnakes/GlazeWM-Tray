@@ -1,13 +1,11 @@
 ﻿namespace GuiTests
 
 open Avalonia.Controls
-open Avalonia.FuncUI
 open Avalonia.Headless
 open Avalonia.Headless.NUnit
 open FsUnit
 open GlazeWM.TrayApp.Views
 open GuiTests.Helpers
-open NUnit.Framework
 
 module WindowsPanelTests =
     [<AvaloniaTest>]
@@ -32,8 +30,7 @@ module WindowsPanelTests =
         let window = Window()
         let response = loadFixture "basic-workspaces-response.json"
         let runQuery =
-            fun q ->
-                // TestContext.Progress.WriteLine($"query: {q}")
+            fun _ ->
                 Async.Sleep(100) |> Async.RunSynchronously
                 Ok(response)
         window.Content <- WindowsPanel.view (mkViewHesHelpers runQuery)
@@ -110,7 +107,7 @@ module WindowsPanelTests =
     let ``on error, displays the error message`` () =
         let window = Window()
         let errorMessage = "An error occured"
-        let runQuery = fun q -> Error errorMessage
+        let runQuery = fun _ -> Error errorMessage
         window.Content <- WindowsPanel.view (mkViewHesHelpers runQuery)
         window.Show()
 

@@ -450,9 +450,8 @@
           "Avalonia.Themes.Fluent": "[11.3.13, )",
           "AvaloniaUI.DiagnosticsSupport": "[2.1.1, )",
           "Huskui.Avalonia": "[0.10.4, )",
-          "Lib": "[0.2.0-beta2, )",
+          "Lib": "[0.3.1-beta, )",
           "MessageBox.Avalonia": "[3.3.1.1, )",
-          "Serilog.Sinks.Console": "[6.1.1, )",
           "Serilog.Sinks.File": "[7.0.0, )",
           "Tmds.DBus.Protocol": "[0.21.3, )"
         }
@@ -466,6 +465,18 @@
           "FsToolkit.ErrorHandling": "[5.2.0, )",
           "Serilog": "[4.3.1, )",
           "System.Reactive": "[6.1.0, )"
+        }
+      },
+      "libtests": {
+        "type": "Project",
+        "dependencies": {
+          "Fleck": "[1.2.0, )",
+          "FsUnit": "[7.1.1, )",
+          "Lib": "[0.3.1-beta, )",
+          "Microsoft.NET.Test.Sdk": "[18.3.0, )",
+          "NUnit3TestAdapter": "[6.2.0, )",
+          "Nunit": "[4.5.1, )",
+          "Serilog.Sinks.Console": "[6.1.1, )"
         }
       },
       "Avalonia.Desktop": {
@@ -520,6 +531,12 @@
         "dependencies": {
           "FSharp.Core": "8.0.100"
         }
+      },
+      "Fleck": {
+        "type": "CentralTransitive",
+        "requested": "[1.2.0, )",
+        "resolved": "1.2.0",
+        "contentHash": "bPLXn6QbLAFoviur6XbrKB0Zn6x04E8VibHXyHZeJsoC7bkUl5DVtzM5cZgDuqHkIrBqAXJyTNJwSNIc6wBJ2Q=="
       },
       "FSharp.Control.Reactive": {
         "type": "CentralTransitive",

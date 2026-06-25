@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="Helpers.fs" />
     <Compile Include="TestApp.fs" />
+    <Compile Include="AppConfigTests.fs" />
     <Compile Include="QueryPanelTests.fs" />
     <Compile Include="WindowsPanelTests.fs" />
     <Compile Include="Program.fs" />
@@ -37,5 +38,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\TrayApp\TrayApp.fsproj" />
+    <ProjectReference Include="..\..\test\LibTests\LibTests.fsproj" />
   </ItemGroup>
 </Project>

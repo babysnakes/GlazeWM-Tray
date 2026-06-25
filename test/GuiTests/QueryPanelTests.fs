@@ -1,10 +1,8 @@
 ﻿namespace GuiTests
 
-open System.Threading.Tasks
 open Avalonia.Controls
 open Avalonia.Headless
 open Avalonia.Headless.NUnit
-open Avalonia.Input.Platform
 open Avalonia.Interactivity
 open FsUnit
 open GlazeWM.TrayApp.Views

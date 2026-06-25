@@ -10,20 +10,21 @@ open GlazeWM.TrayApp.Application
 module Program =
 
     let mkApp () =
-        let config = AppConfig.load ()
-#if DEBUG
-        Log.Logger <-
-            LoggerConfiguration().MinimumLevel.ControlledBy(config.LevelSwitch).WriteTo.Console().CreateLogger()
-#else
+        let config =
+            match AppConfig.load () with
+            | Ok config -> config
+            | Error e ->
+                // TODO: show a message box to the user
+                failwith $"Error parsing config: {e}"
+        let runtimeEnv = RuntimeEnvironment.init config
         let logPath = Path.Combine(config.LogsDirectory, "log.txt")
 
         Log.Logger <-
             LoggerConfiguration()
-                .MinimumLevel.ControlledBy(config.LevelSwitch)
+                .MinimumLevel.ControlledBy(runtimeEnv.LevelSwitch)
                 .WriteTo.File(logPath, fileSizeLimitBytes = 100_000, retainedFileCountLimit = 10)
                 .CreateLogger()
-#endif
-        App(config)
+        App(runtimeEnv)
 
     [<CompiledName "BuildAvaloniaApp">]
     let buildAvaloniaApp () =
